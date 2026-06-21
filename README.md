@@ -3,6 +3,8 @@
 > 콜드체인 **Port-to-FC 관제탑** — 수입 신선식품 바이어를 위한 발주 의사결정 도구.
 > "선박이 언제 도착하는가"가 아니라 **"언제 FC에 입고되어 판매 가능한 재고가 되는가"**.
 
+### 🔗 라이브 데모 → **[fresh-flow-ai.vercel.app](https://fresh-flow-ai.vercel.app/)**
+
 분절된 공공데이터(Port-MIS · UNI-PASS · KATI)를 통합해 Port-to-FC 리드타임을 예측하고,
 FC별 결품 위험을 진단해 선제배치·이관·발주 시점을 제안하는 React 대시보드입니다.
 

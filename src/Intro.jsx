@@ -384,6 +384,9 @@ export default function Intro({ onLaunch }) {
         </Reveal>
         <div style={{ fontFamily: T.display, fontSize: 13, color: "#8B95A1", marginTop: 36 }}>
           AI 해커톤 · Smart Logistics — Rocket_Ian_Lab
+          <span style={{ margin: "0 8px", opacity: 0.5 }}>·</span>
+          <a href="https://fresh-flow-ai.vercel.app/" target="_blank" rel="noopener noreferrer"
+            style={{ color: "#5AA0FF", textDecoration: "none" }}>fresh-flow-ai.vercel.app</a>
         </div>
       </Section>
     </div>
