@@ -247,6 +247,34 @@ function computeCostImpact(beforeFcs, afterFcs, ltDays, vol, price) {
 const fmtWon = (w) => "₩" + Math.round(w).toLocaleString();
 const fmtMan = (w) => Math.round(w / 10000).toLocaleString() + "만원";
 
+// ── AI 리스크 센싱 ──────────────────────────────────────────────
+// 데모: LLM(Claude)이 비정형 텍스트(뉴스·통관 공지·기상특보)를 읽어 리스크 4종을 JSON으로 도출.
+// 아래 keywordSense는 LLM 실패/무키 시 폴백(규칙기반)이자 test_sensing.mjs 검증 기준.
+const SENSE_SAMPLES = {
+  peace: "인천항 정상 운영 중. 기상 특이사항 없음. 칠레산 체리 일반 통관 진행. FC 입고 정상.",
+  crisis: "태풍 '카눈' 북상으로 인천항 접안 대기·혼잡 가중. 관세청, 칠레산 체리 검역 정밀검사 비율 상향(서류 보완 요청 증가). 수도권 폭염 특보. 명절 물량 폭주로 FC 도크 입고 지연.",
+};
+const SENSE_RULES = {
+  cong: [["태풍", 0.35], ["파업", 0.4], ["혼잡", 0.25], ["적체", 0.3], ["접안", 0.2], ["대기", 0.15], ["강풍", 0.2], ["풍랑", 0.2]],
+  cust: [["정밀검사", 0.4], ["검역", 0.25], ["불합격", 0.35], ["서류", 0.2], ["보완", 0.2], ["통관 지연", 0.3], ["표본", 0.2], ["강화", 0.2]],
+  wx:   [["태풍", 0.4], ["폭염", 0.35], ["한파", 0.3], ["강풍", 0.25], ["풍랑", 0.25], ["호우", 0.3], ["특보", 0.2]],
+  dock: [["입고 지연", 0.35], ["도크", 0.3], ["물량", 0.2], ["폭주", 0.3], ["적재", 0.2]],
+};
+const clamp01 = (v) => Math.max(0, Math.min(1, Number(v) || 0));
+function keywordSense(text) {
+  const t = text || "";
+  const risks = {}, rationale = {};
+  for (const k of ["cong", "cust", "wx", "dock"]) {
+    let best = 0; const hits = [];
+    for (const [kw, w] of SENSE_RULES[k]) { if (t.includes(kw)) { hits.push(kw); if (w > best) best = w; } }
+    risks[k] = Math.min(1, Math.round((0.12 + (hits.length ? best + 0.04 * (hits.length - 1) : 0)) * 100) / 100);
+    rationale[k] = hits.length ? `'${hits.join("·")}' 감지` : "특이 신호 없음(평시)";
+  }
+  const p50 = Math.round(12 * (1 + risks.cust * 1.5) * 10) / 10;
+  return { risks, rationale, eta: { p50, p90: Math.round(p50 * 1.4 * 10) / 10, basis: "통관 리스크 기반 추정(규칙)" }, source: "규칙기반 폴백" };
+}
+const senseColor = (v) => (v >= 0.5 ? C.red : v >= 0.3 ? C.amber : C.green);
+
 // AI 진단 텍스트를 라벨 섹션(진단|조치|실행)으로 파싱. 형식 미준수 시 null 반환 → 호출부에서 문장 폴백.
 const AI_SECTIONS = [
   { marker: "진단", title: "핵심 진단", color: C.red },
@@ -278,6 +306,13 @@ export default function FreshFlowAI() {
 
   // Phase 2-E: 선제 조치(Prescriptive) — 실행한 액션 로그 [{id,icon,title}]
   const [actionLog, setActionLog] = useState([]);
+
+  // AI 리스크 센싱 — 텍스트 → LLM → 리스크 JSON → 슬라이더 자동 조정
+  const [senseText, setSenseText] = useState(SENSE_SAMPLES.crisis);
+  const [sensing, setSensing] = useState(false);
+  const [senseResult, setSenseResult] = useState(null);
+  const [senseError, setSenseError] = useState("");
+  const riskAnimRef = useRef(null);
 
   // AI 상세 진단(Claude API) 상태 — 규칙 기반은 항상 살아있고, 이건 부가 기능
   const [aiText, setAiText] = useState("");      // LLM 생성 진단
@@ -404,12 +439,60 @@ export default function FreshFlowAI() {
     setMonitoring(true);
   };
 
+  // 리스크 슬라이더를 목표값까지 부드럽게 이동(센싱 결과 시각화)
+  const animateRiskTo = (target) => {
+    if (riskAnimRef.current) cancelAnimationFrame(riskAnimRef.current);
+    const final = { cong: target.cong, cust: target.cust, wx: target.wx, dock: target.dock };
+    const reduce = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) { setRisk(final); return; }
+    const start = { ...risk }, keys = ["cong", "cust", "wx", "dock"], t0 = performance.now(), dur = 650;
+    const step = (now) => {
+      const p = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - p, 3), next = {};
+      keys.forEach((k) => { next[k] = Math.round((start[k] + (final[k] - start[k]) * e) * 100) / 100; });
+      setRisk(next);
+      if (p < 1) riskAnimRef.current = requestAnimationFrame(step);
+    };
+    riskAnimRef.current = requestAnimationFrame(step);
+    // 안전장치: rAF가 throttle돼도 최종값 보장
+    setTimeout(() => setRisk(final), dur + 90);
+  };
+
+  // AI 리스크 센싱: 텍스트를 Claude에 보내 리스크 JSON 도출 → 슬라이더 자동 조정. 실패 시 규칙기반 폴백.
+  async function runRiskSensing() {
+    setSensing(true); setSenseError("");
+    const prompt = `당신은 수입 신선식품 콜드체인(인천항→수도권 FC)의 리스크 센서 AI입니다. 아래 뉴스/통관 공지/기상 특보 텍스트를 읽고 4개 리스크를 0~1로 평가하세요. 반드시 아래 JSON만 출력하고 다른 설명은 쓰지 마세요.
+{"cong":0~1(항만 혼잡),"cust":0~1(통관·검역),"wx":0~1(기상),"dock":0~1(FC dock 혼잡),"rationale":{"cong":"근거 한 문장","cust":"근거 한 문장","wx":"근거 한 문장","dock":"근거 한 문장"},"eta":{"p50":통관예상시간(시간,숫자),"p90":보수적예상(시간,숫자),"basis":"근거 한 문장"}}
+
+[텍스트]
+${senseText}`;
+    try {
+      const res = await fetch("/api/messages", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 700, messages: [{ role: "user", content: prompt }] }),
+      });
+      if (!res.ok) throw new Error(`API ${res.status}`);
+      const data = await res.json();
+      const text = (data.content || []).map((b) => (b.type === "text" ? b.text : "")).join("");
+      const json = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
+      const risks = { cong: clamp01(json.cong), cust: clamp01(json.cust), wx: clamp01(json.wx), dock: clamp01(json.dock) };
+      setSenseResult({ risks, rationale: json.rationale || {}, eta: json.eta || null, source: "AI (Claude) 분석" });
+      animateRiskTo(risks);
+    } catch (e) {
+      const fb = keywordSense(senseText);
+      setSenseResult(fb); animateRiskTo(fb.risks);
+      setSenseError("AI 호출 실패 — 규칙기반 폴백으로 센싱했습니다(데모 계속).");
+    } finally {
+      setSensing(false);
+      setAiText(""); setAiError(""); setActionLog([]); setMode("before");
+    }
+  }
+
   const setScenario = (s) => {
     setRisk(s === "normal"
       ? { cong: 0.2, cust: 0.2, wx: 0.1, dock: 0.2 }
       : { cong: 0.7, cust: 0.6, wx: 0.4, dock: 0.5 });
     setAiText(""); setAiError(""); // 시나리오 바뀌면 이전 AI 진단 초기화
-    setActionLog([]); setMode("before");
+    setActionLog([]); setMode("before"); setSenseResult(null);
   };
 
   // BL 화물을 엔진에 적용: 해당 화물의 리스크·물량을 주입하고 이전 분석 초기화
@@ -420,7 +503,7 @@ export default function FreshFlowAI() {
     setRisk(b.risk);
     setVol(b.vol);
     setAiText(""); setAiError("");
-    setActionLog([]); setMode("before");
+    setActionLog([]); setMode("before"); setSenseResult(null);
   };
   const onBlSearch = () => {
     const b = lookupBl(blInput);
@@ -571,6 +654,62 @@ ${actLines}
             <div style={{ marginTop: 10, fontSize: 11, color: C.dim }}>
               현재 위치: <b style={{ color: C.blue }}>{SEGMENTS.find((s) => s.key === selectedBl.stage)?.name}</b> 진행 중
               — 이 화물의 구간별 리스크가 아래 리드타임·결품 분석에 반영됩니다.
+            </div>
+          </div>
+        )}
+      </Section>
+
+      {/* ✦ AI 리스크 센싱 */}
+      <Section>
+        <Header label="✦ AI 리스크 센싱 · 뉴스·통관 공지를 읽고 리스크 자동 도출">
+          <span style={{ display: "inline-flex", gap: 6 }}>
+            <button onClick={() => setSenseText(SENSE_SAMPLES.peace)} style={{ border: `1px solid ${C.grid}`, background: "transparent", color: C.dim, borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>평시 예시</button>
+            <button onClick={() => setSenseText(SENSE_SAMPLES.crisis)} style={{ border: `1px solid ${C.grid}`, background: "transparent", color: C.dim, borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>위기 예시</button>
+          </span>
+        </Header>
+        <textarea value={senseText} onChange={(e) => setSenseText(e.target.value)} rows={3}
+          placeholder="뉴스 헤드라인 · UNI-PASS 통관 공지 · 기상 특보를 붙여넣으세요"
+          style={{ width: "100%", resize: "vertical", background: C.panel2, border: `1px solid ${C.grid}`,
+            borderRadius: 8, color: C.text, fontSize: 13, lineHeight: 1.6, padding: "10px 12px", fontFamily: FONT }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, flexWrap: "wrap" }}>
+          <button onClick={runRiskSensing} disabled={sensing} style={{
+            border: "none", background: sensing ? C.grid : C.accent, color: sensing ? C.dim : "#fff",
+            borderRadius: 8, padding: "9px 18px", fontSize: 13, fontWeight: 700, cursor: sensing ? "default" : "pointer" }}>
+            {sensing ? "분석 중…" : "✦ AI로 리스크 자동 도출 → 슬라이더 적용"}
+          </button>
+          {senseResult && <span style={{ fontSize: 11, fontWeight: 600, color: senseResult.source.includes("AI") ? C.blue : C.amber }}>{senseResult.source}</span>}
+        </div>
+        {senseError && <div style={{ marginTop: 8, fontSize: 12, color: C.amber }}>{senseError}</div>}
+
+        {senseResult && (
+          <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.grid}` }}>
+            {/* 근거 매핑 칩 (설명가능성) */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 8 }}>
+              {RISKS.map((r) => {
+                const v = senseResult.risks[r.key]; const col = senseColor(v);
+                return (
+                  <div key={r.key} style={{ background: C.panel2, borderRadius: 8, borderLeft: `3px solid ${col}`, padding: "8px 11px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontSize: 12, fontWeight: 600 }}>{r.name}</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: col, fontFamily: "'IBM Plex Mono', monospace" }}>{Math.round(v * 100)}%</span>
+                    </div>
+                    <div style={{ fontSize: 11, color: C.dim, marginTop: 3 }}>{senseResult.rationale?.[r.key] || "—"}</div>
+                  </div>
+                );
+              })}
+            </div>
+            {/* 확률형 통관 ETA */}
+            {senseResult.eta && (
+              <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8, background: `${C.blue}10`, border: `1px solid ${C.blue}44`, borderRadius: 8, padding: "9px 13px", flexWrap: "wrap" }}>
+                <span style={{ fontSize: 16 }}>🕒</span>
+                <span style={{ fontSize: 12, color: C.text }}>
+                  확률형 통관 ETA — <b style={{ color: C.blue }}>P50 약 {Number(senseResult.eta.p50).toFixed(1)}h</b> · <b>P90 약 {Number(senseResult.eta.p90).toFixed(1)}h</b>
+                  <span style={{ color: C.dim }}> · 추정 ({senseResult.eta.basis || "AI 추정"})</span>
+                </span>
+              </div>
+            )}
+            <div style={{ marginTop: 10, fontSize: 10, color: C.dim }}>
+              비정형 텍스트 → 리스크 변환은 <b style={{ color: C.text }}>실제 LLM(Claude)</b>이 수행합니다(폴백 시 규칙기반). 텍스트 수집(뉴스·UNI-PASS 라이브 크롤링)은 데모 범위 밖이라 샘플/붙여넣기로 시연하며, ETA는 추정치입니다.
             </div>
           </div>
         )}
