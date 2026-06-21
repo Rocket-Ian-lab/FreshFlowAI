@@ -16,8 +16,8 @@ export default function App() {
     return (
       <button onClick={() => setView(id)} style={{
         border: "none", background: "transparent", cursor: "pointer", fontFamily: N.display,
-        fontSize: 14, fontWeight: on ? 600 : 500, color: on ? N.ink : N.dim,
-        padding: "6px 2px", borderBottom: `2px solid ${on ? N.accent : "transparent"}`,
+        fontSize: 17, fontWeight: on ? 700 : 600, color: on ? N.ink : N.dim, letterSpacing: -0.3,
+        padding: "8px 2px", borderBottom: `2.5px solid ${on ? N.accent : "transparent"}`,
       }}>{label}</button>
     );
   };
