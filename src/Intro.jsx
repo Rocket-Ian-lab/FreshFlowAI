@@ -10,6 +10,7 @@ const T = {
   dim: "#6B7684", line: "#E5E8EB", accent: "#3182F6", blue: "#3182F6", green: "#00B26C",
   display: "'Pretendard Variable', Pretendard, system-ui, -apple-system, sans-serif",
   body: "'Pretendard Variable', Pretendard, system-ui, -apple-system, sans-serif",
+  heading: "'Wanted Sans Variable', 'Pretendard Variable', Pretendard, system-ui, sans-serif", // 헤드라인 전용
   mono: "'IBM Plex Mono', monospace",
 };
 
@@ -144,7 +145,7 @@ const Kicker = ({ children }) => (
     textTransform: "uppercase", color: T.mid, marginBottom: 16 }}>{children}</div>
 );
 const H2 = ({ children, light }) => (
-  <h2 style={{ fontFamily: T.display, fontWeight: 700, fontSize: "clamp(1.9rem,3.6vw,2.9rem)",
+  <h2 style={{ fontFamily: T.heading, fontWeight: 700, fontSize: "clamp(1.9rem,3.6vw,2.9rem)",
     lineHeight: 1.18, color: light ? T.paper : T.ink, margin: "0 0 24px", letterSpacing: -0.8 }}>{children}</h2>
 );
 const Lead = ({ children, style }) => (
@@ -189,7 +190,7 @@ export default function Intro({ onLaunch }) {
             </div>
           </Reveal>
           <Reveal delay={80}>
-            <h1 style={{ fontFamily: T.display, fontWeight: 700, fontSize: "clamp(3.2rem,7.5vw,5.6rem)",
+            <h1 style={{ fontFamily: T.heading, fontWeight: 700, fontSize: "clamp(3.2rem,7.5vw,5.6rem)",
               lineHeight: 1.04, letterSpacing: -2, margin: "0 0 30px" }}>
               발주를 더 이상<br />도박하지 않게.
             </h1>
@@ -347,7 +348,7 @@ export default function Intro({ onLaunch }) {
             { node: <CountUp value={90} suffix="%" />, l: "위기·체리 1건 비용 순절감" },
           ].map((s, i) => (
             <Reveal key={i} delay={i * 90}>
-              <div style={{ fontFamily: T.display, fontWeight: 700, fontSize: "clamp(2.6rem,4vw,3.3rem)", color: T.ink, lineHeight: 1, letterSpacing: -1.5 }}>{s.node}</div>
+              <div style={{ fontFamily: T.heading, fontWeight: 700, fontSize: "clamp(2.6rem,4vw,3.3rem)", color: T.ink, lineHeight: 1, letterSpacing: -1.5 }}>{s.node}</div>
               <div style={{ fontFamily: T.body, fontSize: "0.98rem", color: T.dim, marginTop: 10, lineHeight: 1.5 }}>{s.l}</div>
             </Reveal>
           ))}

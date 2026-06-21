@@ -31,7 +31,7 @@ export default function App() {
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
           <Logo size={45} />
-          <span style={{ fontFamily: N.display, fontSize: 24, fontWeight: 600, color: N.ink, letterSpacing: -0.3 }}>
+          <span style={{ fontFamily: "'Wanted Sans Variable', " + N.display, fontSize: 24, fontWeight: 700, color: N.ink, letterSpacing: -0.5 }}>
             FreshFlow <span style={{ color: N.accent }}>AI</span>
           </span>
         </div>
