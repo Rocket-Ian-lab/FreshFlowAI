@@ -1,0 +1,25 @@
+<svg width="100" height="100" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="ffBg" x1="0" y1="0" x2="0" y2="100" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#16294a"/>
+      <stop offset="1" stop-color="#0a1322"/>
+    </linearGradient>
+    <linearGradient id="ffRoute" x1="27" y1="71" x2="73" y2="29" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4f7bb0"/>
+      <stop offset="0.55" stop-color="#1fb6a6"/>
+      <stop offset="1" stop-color="#16e6c6"/>
+    </linearGradient>
+    <filter id="ffGlow" x="-70%" y="-70%" width="240%" height="240%">
+      <feGaussianBlur stdDeviation="3.2" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect x="2" y="2" width="96" height="96" rx="24" fill="url(#ffBg)" stroke="#223b60" stroke-opacity="0.6" stroke-width="1"/>
+  <path d="M27 71 C40 62 45 58 50 51 C56 43 62 38 73 29" stroke="url(#ffRoute)" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="50" cy="51" r="3.4" fill="#1f9fb0"/>
+  <circle cx="27" cy="71" r="5.2" fill="#0b1830" stroke="#4f7bb0" stroke-width="3"/>
+  <g filter="url(#ffGlow)">
+    <circle cx="73" cy="29" r="6.4" fill="#0b1830" stroke="#16e6c6" stroke-width="3.4"/>
+    <circle cx="73" cy="29" r="2" fill="#8dfbe8"/>
+  </g>
+</svg>
