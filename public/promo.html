@@ -210,9 +210,33 @@
   const times=[0,4400,9000,13400,18200,23400,31400,36000,41500];
   const END=47000;
   let timers=[];
+  // 라이브 앱(iframe)을 자동으로 구동: 위기 BL 선택 → 결과 스크롤 투어 (동일 출처)
+  function driveDemo(f){
+    let doc; try{ doc=f.contentDocument; }catch(e){ return; }
+    if(!doc) return; const win=f.contentWindow; let tries=0;
+    const iv=setInterval(()=>{
+      let chip; try{ chip=[...doc.querySelectorAll('button')].find(b=>b.textContent.includes('칠레산 체리')); }catch(e){ clearInterval(iv); return; }
+      if(chip){ clearInterval(iv); try{ chip.click(); }catch(e){} setTimeout(()=>autoScrollDemo(win,doc),1000); }
+      else if(++tries>50){ clearInterval(iv); }
+    },120);
+  }
+  function smoothScrollTo(win,y,dur){ // setTimeout 기반(헤드리스 throttle에도 동작)
+    const start=win.scrollY||0, t0=performance.now();
+    const step=()=>{ const p=Math.min(1,(performance.now()-t0)/dur), e=1-Math.pow(1-p,3);
+      try{ win.scrollTo(0, start+(y-start)*e); }catch(err){} if(p<1) setTimeout(step,16); };
+    step();
+  }
+  function autoScrollDemo(win,doc){
+    const yOf=(kw)=>{ try{ const el=[...doc.querySelectorAll('span')].find(e=>e.textContent.includes(kw)); return el ? el.getBoundingClientRect().top + (win.scrollY||0) - 24 : null; }catch(e){ return null; } };
+    const seq=[yOf('어디서 새는가'), yOf('비용 임팩트')].filter(v=>v!=null);
+    let i=0; const go=()=>{ if(i>=seq.length)return; smoothScrollTo(win, seq[i], 900); i++; setTimeout(go,2400); };
+    go();
+  }
   function activateDemo(){
     const v=document.getElementById('demoVid'), f=document.getElementById('demoFrame');
-    const useFrame=()=>{ if(v)v.style.display='none'; if(f){ f.style.display='block'; if(!f.dataset.loaded){ f.src='/'; f.dataset.loaded='1'; } } };
+    const useFrame=()=>{ if(v)v.style.display='none'; if(!f)return; f.style.display='block';
+      f.onload=()=>{ try{ driveDemo(f); }catch(e){} };
+      f.src='/?demo=1'; }; // 매 활성화마다 새로 로드해 처음부터 자동 시연
     const useVideo=()=>{ if(f)f.style.display='none'; v.style.display='block'; try{ v.currentTime=0; v.play().catch(()=>{}); }catch(e){} };
     if(!v){ useFrame(); return; }
     // 실제 비디오가 디코드됐는지로 판정 (SPA 폴백이 200 HTML을 줘도 안전)
