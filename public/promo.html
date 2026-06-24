@@ -55,6 +55,14 @@
   .fcwrap{display:flex;align-items:center;gap:2.5vw;margin-top:1vw;}
   .fcbig{font-family:var(--head);font-weight:700;font-size:7vw;line-height:1;}
   .arrow{font-size:3.5vw;color:var(--blue);}
+  /* 제품 시연 목업 (S6) */
+  .mock{width:64vw;height:37vw;max-height:62vh;background:#fff;border-radius:1vw;overflow:hidden;
+    box-shadow:0 1.6vw 5vw rgba(0,0,0,.22);border:1px solid var(--line);}
+  .mockbar{height:2.6vw;background:#E9ECEF;display:flex;align-items:center;gap:.6vw;padding:0 1.2vw;}
+  .mockbar .d{width:.9vw;height:.9vw;border-radius:50%;}
+  .mockbar .url{margin-left:1vw;font-size:1.05vw;color:#6B7684;background:#fff;border-radius:.5vw;padding:.25vw 1.4vw;}
+  .mockbody{position:relative;width:100%;height:calc(100% - 2.6vw);background:#F2F4F6;}
+  .mockbody video,.mockbody iframe{position:absolute;inset:0;width:100%;height:100%;border:0;object-fit:cover;display:block;}
   /* 진행바 */
   #bar{position:absolute;left:0;bottom:0;height:4px;width:0;background:var(--blue);z-index:5;}
   /* 리플레이 */
@@ -136,8 +144,27 @@
     </div>
   </section>
 
-  <!-- S6 먼저 움직인다 -->
+  <!-- S6 실제 제품 시연 (데모 영상 or 라이브 앱) -->
   <section class="scene" data-i="5">
+    <div class="label rise">실제 제품 · 라이브 데모</div>
+    <div class="mock rise r2">
+      <div class="mockbar">
+        <span class="d" style="background:#FF5F57"></span><span class="d" style="background:#FEBC2E"></span><span class="d" style="background:#28C840"></span>
+        <span class="url">fresh-flow-ai.vercel.app</span>
+      </div>
+      <div class="mockbody">
+        <video id="demoVid" muted playsinline loop preload="auto">
+          <source src="/demo.mp4" type="video/mp4" />
+          <source src="/demo.webm" type="video/webm" />
+        </video>
+        <iframe id="demoFrame" title="라이브 데모" style="display:none" src="about:blank"></iframe>
+      </div>
+    </div>
+    <p class="sub rise r3" style="margin-top:1.2vw">위기 BL 조회 → AI 리스크 센싱 → 결품 경보 → 선제조치 → 비용 절감, 한 흐름으로.</p>
+  </section>
+
+  <!-- S7 먼저 움직인다 -->
+  <section class="scene" data-i="6">
     <div class="label rise">③ 먼저 움직인다</div>
     <div class="fcwrap rise r2">
       <span class="fcbig" style="color:var(--red)">2</span>
@@ -147,8 +174,8 @@
     <p class="sub rise r3">선제배치·재고 이관·발주 시점까지 — 결품 위험 FC를 <b style="color:var(--ink)">2개에서 0개로</b>. 위험에서 끝내지 않는다.</p>
   </section>
 
-  <!-- S7 IMPACT -->
-  <section class="scene" data-i="6">
+  <!-- S8 IMPACT -->
+  <section class="scene" data-i="7">
     <div class="kicker rise">추측이 아니라, 검증했다</div>
     <div class="row rise r2" style="margin-top:1vw">
       <div class="stat"><span class="num" data-to="7.4" data-suf="h">0h</span><span class="cap">결품 전 평균 선행</span></div>
@@ -157,8 +184,8 @@
     </div>
   </section>
 
-  <!-- S8 CLOSE -->
-  <section class="scene dark" data-i="7">
+  <!-- S9 CLOSE -->
+  <section class="scene dark" data-i="8">
     <h1 class="sm rise">감이 아니라, <span class="accent">데이터로.</span></h1>
     <div class="brandrow rise r2" style="margin-top:2.4vw">
       <svg class="logo" style="width:4vw;height:4vw" viewBox="0 0 100 100" fill="none">
@@ -180,9 +207,22 @@
 <script>
   const scenes=[...document.querySelectorAll('.scene')];
   const bar=document.getElementById('bar'), replay=document.getElementById('replay');
-  const times=[0,4400,9000,13400,18200,23400,28200,33800];
-  const END=39000;
+  const times=[0,4400,9000,13400,18200,23400,31400,36000,41500];
+  const END=47000;
   let timers=[];
+  function activateDemo(){
+    const v=document.getElementById('demoVid'), f=document.getElementById('demoFrame');
+    const useFrame=()=>{ if(v)v.style.display='none'; if(f){ f.style.display='block'; if(!f.dataset.loaded){ f.src='/'; f.dataset.loaded='1'; } } };
+    const useVideo=()=>{ if(f)f.style.display='none'; v.style.display='block'; try{ v.currentTime=0; v.play().catch(()=>{}); }catch(e){} };
+    if(!v){ useFrame(); return; }
+    // 실제 비디오가 디코드됐는지로 판정 (SPA 폴백이 200 HTML을 줘도 안전)
+    if(v.readyState>=2 && v.videoWidth>0){ useVideo(); return; }
+    let done=false;
+    v.addEventListener('loadeddata', ()=>{ if(!done && v.videoWidth>0){ done=true; useVideo(); } }, {once:true});
+    v.addEventListener('error', ()=>{ if(!done){ done=true; useFrame(); } }, {once:true});
+    try{ v.load(); }catch(e){}
+    setTimeout(()=>{ if(!done){ done=true; (v.videoWidth>0 ? useVideo : useFrame)(); } }, 900);
+  }
   function countUp(el){
     const to=parseFloat(el.dataset.to), suf=el.dataset.suf||'', dec=(to%1!==0)?1:0;
     const t0=performance.now(), dur=1200;
@@ -194,7 +234,8 @@
     if(i===4){ // 리스크 바 채우기
       scenes[4].querySelectorAll('.bar .track > i').forEach(el=>{ el.style.width='0'; requestAnimationFrame(()=>{ el.style.width=getComputedStyle(el).getPropertyValue('--w'); }); });
     }
-    if(i===6){ scenes[6].querySelectorAll('.num[data-to]').forEach(countUp); }
+    if(i===5){ activateDemo(); }            // 실제 제품 시연
+    if(i===7){ scenes[7].querySelectorAll('.num[data-to]').forEach(countUp); } // 임팩트 카운트업
   }
   function show(i){ scenes.forEach((s,j)=>s.classList.toggle('show',j===i)); sceneAnims(i); }
   function play(){
