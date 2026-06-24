@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>FreshFlow AI — 광고 영상</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@latest/dist/web/variable/pretendard-dynamic-subset.min.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/wanteddev/wanted-sans@latest/packages/wanted-sans/fonts/webfonts/variable/split/WantedSansVariable.min.css" />
+<style>
+  :root{
+    --blue:#3182F6; --ink:#191F28; --paper:#F2F4F6; --card:#fff; --line:#E5E8EB;
+    --dim:#6B7684; --green:#00B26C; --amber:#FF9500; --red:#F04452;
+    --body:'Pretendard Variable',Pretendard,system-ui,sans-serif;
+    --head:'Wanted Sans Variable','Pretendard Variable',Pretendard,sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{height:100%;background:#000;font-family:var(--body);overflow:hidden;}
+  /* 16:9 무대 — 뷰포트에 맞춰 스케일 */
+  #stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#0b0d10;}
+  #frame{position:relative;width:100vw;height:56.25vw;max-height:100vh;max-width:177.78vh;
+    background:var(--paper);overflow:hidden;}
+  .scene{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;padding:0 8%;opacity:0;transform:translateY(18px) scale(.99);
+    transition:opacity .7s ease,transform .7s cubic-bezier(.22,.61,.36,1);pointer-events:none;}
+  .scene.show{opacity:1;transform:none;}
+  .scene.dark{background:var(--ink);}
+  /* 타이포 (vw 기반 → 스케일) */
+  .kicker{font-family:var(--head);font-size:1.25vw;font-weight:700;letter-spacing:.25vw;color:var(--blue);
+    text-transform:uppercase;margin-bottom:1.6vw;}
+  .kicker.dim{color:var(--dim);}
+  h1{font-family:var(--head);font-weight:700;font-size:5.4vw;line-height:1.08;letter-spacing:-.12vw;color:var(--ink);}
+  h1.sm{font-size:4vw;}
+  .dark h1{color:#fff;}
+  .sub{font-family:var(--body);font-size:1.7vw;line-height:1.6;color:var(--dim);margin-top:2vw;max-width:62vw;}
+  .dark .sub{color:#AEB6BF;}
+  .blue{color:var(--blue);} .accent{color:#5AA0FF;}
+  .label{font-family:var(--head);font-weight:700;font-size:2.6vw;color:var(--ink);margin-bottom:.4vw;}
+  .num{font-family:var(--head);font-weight:700;font-size:6vw;line-height:1;color:var(--ink);letter-spacing:-.15vw;}
+  /* 무대 내부 요소 */
+  .row{display:flex;gap:3vw;align-items:flex-end;justify-content:center;}
+  .stat{display:flex;flex-direction:column;align-items:center;gap:.8vw;}
+  .stat .cap{font-size:1.3vw;color:var(--dim);}
+  .brandrow{display:flex;align-items:center;gap:1.6vw;}
+  .logo{width:7vw;height:7vw;}
+  .wordmark{font-family:var(--head);font-weight:700;font-size:4.6vw;color:var(--ink);letter-spacing:-.1vw;}
+  /* 리스크 바 (S5) */
+  .bars{display:flex;flex-direction:column;gap:1.1vw;width:46vw;margin-top:1vw;}
+  .bar{display:flex;align-items:center;gap:1vw;}
+  .bar .nm{width:11vw;text-align:right;font-size:1.3vw;color:var(--dim);}
+  .bar .track{flex:1;height:1.5vw;background:#E5E8EB;border-radius:1vw;overflow:hidden;}
+  .bar .track > i{display:block;height:100%;width:0;background:var(--blue);border-radius:1vw;}
+  .scene.show .bar .track > i{transition:width 1.1s cubic-bezier(.22,.61,.36,1) .3s;}
+  .bar .pct{width:4vw;text-align:left;font-family:'Wanted Sans Variable';font-weight:700;font-size:1.4vw;color:var(--blue);}
+  /* 결품 2→0 (S6) */
+  .fcwrap{display:flex;align-items:center;gap:2.5vw;margin-top:1vw;}
+  .fcbig{font-family:var(--head);font-weight:700;font-size:7vw;line-height:1;}
+  .arrow{font-size:3.5vw;color:var(--blue);}
+  /* 진행바 */
+  #bar{position:absolute;left:0;bottom:0;height:4px;width:0;background:var(--blue);z-index:5;}
+  /* 리플레이 */
+  #replay{position:absolute;right:2vw;bottom:2.4vw;z-index:6;opacity:0;transition:opacity .4s;
+    font-family:var(--head);font-weight:600;font-size:1.2vw;color:#fff;background:var(--blue);
+    border:none;border-radius:.7vw;padding:.8vw 1.6vw;cursor:pointer;}
+  #replay.show{opacity:1;}
+  .hint{position:absolute;left:2vw;bottom:2vw;z-index:6;font-size:1vw;color:var(--dim);opacity:.7;}
+  /* route svg draw */
+  .route-line{stroke-dasharray:520;stroke-dashoffset:520;}
+  .scene.show .route-line{animation:draw 1.5s ease .3s forwards;}
+  @keyframes draw{to{stroke-dashoffset:0;}}
+  .scene.show .pulse{animation:pulse 2.2s ease-in-out 1.4s infinite;}
+  @keyframes pulse{0%,100%{filter:drop-shadow(0 0 .2vw rgba(49,130,246,.5));}50%{filter:drop-shadow(0 0 1vw rgba(49,130,246,.9));}}
+  .rise{opacity:0;transform:translateY(1.4vw);}
+  .scene.show .rise{animation:rise .7s ease forwards;}
+  .scene.show .r2{animation-delay:.5s;} .scene.show .r3{animation-delay:.9s;} .scene.show .r4{animation-delay:1.3s;}
+  @keyframes rise{to{opacity:1;transform:none;}}
+  @media (prefers-reduced-motion:reduce){*{animation-duration:.01s!important;transition-duration:.01s!important;}}
+</style>
+</head>
+<body>
+<div id="stage"><div id="frame">
+
+  <!-- S1 HOOK -->
+  <section class="scene dark" data-i="0">
+    <div class="kicker rise">AM 05:40</div>
+    <h1 class="rise r2">또, 결품 문자.</h1>
+    <p class="sub rise r3">“행사 매대가 비었습니다.” — 수입 신선식품 바이어의 하루는 이렇게 시작된다.</p>
+  </section>
+
+  <!-- S2 PROBLEM -->
+  <section class="scene" data-i="1">
+    <h1 class="rise">매일 <span class="blue">발주를 도박</span>한다</h1>
+    <p class="sub rise r2">통관 일정이 깜깜이라 감(感)으로 발주. 늦을까 봐 과발주하면 폐기, 적게 하면 결품. 어느 쪽이든 바이어 책임.</p>
+  </section>
+
+  <!-- S3 BRAND -->
+  <section class="scene" data-i="2">
+    <div class="brandrow rise">
+      <svg class="logo" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="2" y="2" width="96" height="96" rx="24" fill="#0f1830"/>
+        <path d="M27 71 C40 62 45 58 50 51 C56 43 62 38 73 29" stroke="#3182F6" stroke-width="6" stroke-linecap="round"/>
+        <circle cx="27" cy="71" r="5.5" fill="#0f1830" stroke="#6a9bff" stroke-width="3.2"/>
+        <circle cx="50" cy="51" r="3.6" fill="#2bd4c4"/>
+        <circle cx="73" cy="29" r="7" fill="#0f1830" stroke="#2bd4c4" stroke-width="3.6"/>
+      </svg>
+      <span class="wordmark">FreshFlow <span class="blue">AI</span></span>
+    </div>
+    <p class="sub rise r2">콜드체인 <b style="color:var(--ink)">Port-to-FC 관제탑</b> — “언제 FC에 입고되어 판매 가능한 재고가 되는가”</p>
+  </section>
+
+  <!-- S4 모은다 (route) -->
+  <section class="scene" data-i="3">
+    <div class="label rise">① 모은다</div>
+    <svg viewBox="0 0 680 150" style="width:62vw;height:auto;margin:1.5vw 0">
+      <defs><linearGradient id="rg" x1="0" x2="1"><stop offset="0" stop-color="#9DC4FF"/><stop offset="1" stop-color="#3182F6"/></linearGradient></defs>
+      <line x1="70" y1="70" x2="610" y2="70" stroke="#E5E8EB" stroke-width="3"/>
+      <line class="route-line" x1="70" y1="70" x2="610" y2="70" stroke="url(#rg)" stroke-width="5" stroke-linecap="round"/>
+      <g font-family="Pretendard Variable" font-size="15" fill="#6B7684" text-anchor="middle">
+        <circle cx="70" cy="70" r="7" fill="#fff" stroke="#3182F6" stroke-width="3"/><text x="70" y="104">항만</text>
+        <circle cx="250" cy="70" r="7" fill="#fff" stroke="#3182F6" stroke-width="3"/><text x="250" y="104">통관·검역</text>
+        <circle cx="430" cy="70" r="7" fill="#fff" stroke="#3182F6" stroke-width="3"/><text x="430" y="104">냉장 내륙</text>
+        <circle class="pulse" cx="610" cy="70" r="10" fill="#3182F6"/><text x="610" y="104" fill="#3182F6" font-weight="700">FC 입고</text>
+      </g>
+    </svg>
+    <p class="sub rise r2">분절된 공공데이터(Port-MIS·UNI-PASS·KATI)를 통합해 ‘어디서 새는가’를 한눈에.</p>
+  </section>
+
+  <!-- S5 알아챈다 (AI sensing) -->
+  <section class="scene" data-i="4">
+    <div class="label rise">② 알아챈다 · <span class="blue">AI 리스크 센싱</span></div>
+    <p class="sub rise r2" style="margin:.6vw 0 1.4vw">“태풍 북상·검역 정밀검사 상향·폭염 특보…” — AI가 뉴스를 읽고 리스크를 스스로 도출</p>
+    <div class="bars">
+      <div class="bar rise r2"><span class="nm">항만 혼잡</span><span class="track"><i style="--w:82%"></i></span><span class="pct">82%</span></div>
+      <div class="bar rise r3"><span class="nm">통관·검역</span><span class="track"><i style="--w:75%"></i></span><span class="pct">75%</span></div>
+      <div class="bar rise r3"><span class="nm">기상</span><span class="track"><i style="--w:70%"></i></span><span class="pct">70%</span></div>
+      <div class="bar rise r4"><span class="nm">FC Dock</span><span class="track"><i style="--w:85%"></i></span><span class="pct">85%</span></div>
+    </div>
+  </section>
+
+  <!-- S6 먼저 움직인다 -->
+  <section class="scene" data-i="5">
+    <div class="label rise">③ 먼저 움직인다</div>
+    <div class="fcwrap rise r2">
+      <span class="fcbig" style="color:var(--red)">2</span>
+      <span class="arrow">→</span>
+      <span class="fcbig" style="color:var(--green)">0</span>
+    </div>
+    <p class="sub rise r3">선제배치·재고 이관·발주 시점까지 — 결품 위험 FC를 <b style="color:var(--ink)">2개에서 0개로</b>. 위험에서 끝내지 않는다.</p>
+  </section>
+
+  <!-- S7 IMPACT -->
+  <section class="scene" data-i="6">
+    <div class="kicker rise">추측이 아니라, 검증했다</div>
+    <div class="row rise r2" style="margin-top:1vw">
+      <div class="stat"><span class="num" data-to="7.4" data-suf="h">0h</span><span class="cap">결품 전 평균 선행</span></div>
+      <div class="stat"><span class="num">2→0</span><span class="cap">위기 결품 위험 FC</span></div>
+      <div class="stat"><span class="num" data-to="90" data-suf="%">0%</span><span class="cap">위기 1건 비용 순절감</span></div>
+    </div>
+  </section>
+
+  <!-- S8 CLOSE -->
+  <section class="scene dark" data-i="7">
+    <h1 class="sm rise">감이 아니라, <span class="accent">데이터로.</span></h1>
+    <div class="brandrow rise r2" style="margin-top:2.4vw">
+      <svg class="logo" style="width:4vw;height:4vw" viewBox="0 0 100 100" fill="none">
+        <rect x="2" y="2" width="96" height="96" rx="24" fill="#11203f"/>
+        <path d="M27 71 C40 62 45 58 50 51 C56 43 62 38 73 29" stroke="#3182F6" stroke-width="6" stroke-linecap="round"/>
+        <circle cx="73" cy="29" r="7" fill="#11203f" stroke="#2bd4c4" stroke-width="3.6"/>
+      </svg>
+      <span class="wordmark" style="font-size:3vw;color:#fff">FreshFlow <span class="blue">AI</span></span>
+    </div>
+    <p class="sub rise r3" style="margin-top:1.6vw">fresh-flow-ai.vercel.app &nbsp;·&nbsp; AI 해커톤 — Rocket_Ian_Lab</p>
+  </section>
+
+  <div id="bar"></div>
+  <button id="replay">▶ 다시 재생</button>
+  <div class="hint">자동 재생 · R 키로 다시 재생 · 풀스크린(F11) 후 화면 녹화</div>
+
+</div></div>
+
+<script>
+  const scenes=[...document.querySelectorAll('.scene')];
+  const bar=document.getElementById('bar'), replay=document.getElementById('replay');
+  const times=[0,4400,9000,13400,18200,23400,28200,33800];
+  const END=39000;
+  let timers=[];
+  function countUp(el){
+    const to=parseFloat(el.dataset.to), suf=el.dataset.suf||'', dec=(to%1!==0)?1:0;
+    const t0=performance.now(), dur=1200;
+    function step(now){ const p=Math.min(1,(now-t0)/dur), e=1-Math.pow(1-p,3);
+      el.textContent=(to*e).toFixed(dec)+suf; if(p<1)requestAnimationFrame(step); else el.textContent=to.toFixed(dec)+suf; }
+    requestAnimationFrame(step);
+  }
+  function sceneAnims(i){
+    if(i===4){ // 리스크 바 채우기
+      scenes[4].querySelectorAll('.bar .track > i').forEach(el=>{ el.style.width='0'; requestAnimationFrame(()=>{ el.style.width=getComputedStyle(el).getPropertyValue('--w'); }); });
+    }
+    if(i===6){ scenes[6].querySelectorAll('.num[data-to]').forEach(countUp); }
+  }
+  function show(i){ scenes.forEach((s,j)=>s.classList.toggle('show',j===i)); sceneAnims(i); }
+  function play(){
+    timers.forEach(clearTimeout); timers=[];
+    replay.classList.remove('show');
+    times.forEach((t,i)=>timers.push(setTimeout(()=>show(i),t)));
+    bar.style.transition='none'; bar.style.width='0';
+    requestAnimationFrame(()=>{ bar.style.transition=`width ${END}ms linear`; bar.style.width='100%'; });
+    timers.push(setTimeout(()=>replay.classList.add('show'), END));
+  }
+  replay.onclick=play;
+  document.addEventListener('keydown',e=>{ if(e.key==='r'||e.key==='R')play(); });
+  // 폰트 로드 후 시작(레이아웃 안정) — 폰트 지연/실패해도 800ms 내 시작 보장
+  let started=false;
+  function start(){ if(started)return; started=true; play(); }
+  if(document.fonts&&document.fonts.ready){ document.fonts.ready.then(()=>setTimeout(start,150)); }
+  setTimeout(start,800);
+</script>
+</body>
+</html>
