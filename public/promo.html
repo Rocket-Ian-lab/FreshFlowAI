@@ -160,7 +160,7 @@
         <iframe id="demoFrame" title="라이브 데모" style="display:none" src="about:blank"></iframe>
       </div>
     </div>
-    <p class="sub rise r3" style="margin-top:1.2vw">위기 BL 조회 → AI 리스크 센싱 → 결품 경보 → 선제조치 → 비용 절감, 한 흐름으로.</p>
+    <p class="sub rise r3" style="margin-top:1.2vw">칠레산 체리 조회 → 리드타임 확인 → 실시간 모니터링 → 선제배치 실행, 실제 화면 그대로.</p>
   </section>
 
   <!-- S7 먼저 움직인다 -->
@@ -207,30 +207,43 @@
 <script>
   const scenes=[...document.querySelectorAll('.scene')];
   const bar=document.getElementById('bar'), replay=document.getElementById('replay');
-  const times=[0,4400,9000,13400,18200,23400,31400,36000,41500];
-  const END=47000;
+  const times=[0,4400,9000,13400,18200,23400,36400,41000,46500];
+  const END=52000;
   let timers=[];
-  // 라이브 앱(iframe)을 자동으로 구동: 위기 BL 선택 → 결과 스크롤 투어 (동일 출처)
+  // 라이브 앱(iframe)을 실제 사용처럼 자동 구동 (동일 출처):
+  // 칠레산 체리 클릭 → 리드타임에서 멈춤 → 실시간 모니터링 실행 → 선제조치 배치 실행 → 비용 결과
   function driveDemo(f){
     let doc; try{ doc=f.contentDocument; }catch(e){ return; }
-    if(!doc) return; const win=f.contentWindow; let tries=0;
+    if(!doc) return; const win=f.contentWindow;
+    const btn=(kw)=>{ try{ return [...doc.querySelectorAll('button')].find(b=>b.textContent.includes(kw)); }catch(e){ return null; } };
+    const span=(kw)=>{ try{ return [...doc.querySelectorAll('span')].find(e=>e.textContent.includes(kw)); }catch(e){ return null; } };
+    const scrollToEl=(el,dur)=>{ if(!el)return; try{ smoothScrollTo(win, el.getBoundingClientRect().top+(win.scrollY||0)-24, dur||900); }catch(e){} };
+    let tries=0;
     const iv=setInterval(()=>{
-      let chip; try{ chip=[...doc.querySelectorAll('button')].find(b=>b.textContent.includes('칠레산 체리')); }catch(e){ clearInterval(iv); return; }
-      if(chip){ clearInterval(iv); try{ chip.click(); }catch(e){} setTimeout(()=>autoScrollDemo(win,doc),1000); }
-      else if(++tries>50){ clearInterval(iv); }
+      const chip=btn('칠레산 체리');
+      if(chip){ clearInterval(iv); runSteps(); }
+      else if(++tries>60){ clearInterval(iv); }
     },120);
+    function runSteps(){
+      const steps=[
+        [700,  ()=>{ const c=btn('칠레산 체리'); if(c)c.click(); }],            // 1) 칠레산 체리 클릭
+        [1600, ()=>scrollToEl(span('어디서 새는가'),900)],                      // 2) 리드타임으로 이동 후 멈춤(약 1초)
+        [1300, ()=>scrollToEl(span('이상 신호 조기경보'),900)],                 // 3) 조기경보 섹션
+        [1800, ()=>{ const b=btn('실시간 모니터링 시작'); if(b)b.click(); }],   //    실시간 모니터링 실행
+        [1300, ()=>scrollToEl(span('선제 조치'),900)],                          // 4) 선제조치 섹션
+        [1800, ()=>{ const b=btn('배치 실행'); if(b)b.click(); }],              //    배치 실행
+        [1600, ()=>scrollToEl(span('비용 임팩트'),900)],                        //    결과(비용 임팩트)
+      ];
+      let i=0;
+      const next=()=>{ if(i>=steps.length)return; const s=steps[i]; try{ s[1](); }catch(e){} i++; setTimeout(next,s[0]); };
+      next();
+    }
   }
   function smoothScrollTo(win,y,dur){ // setTimeout 기반(헤드리스 throttle에도 동작)
     const start=win.scrollY||0, t0=performance.now();
     const step=()=>{ const p=Math.min(1,(performance.now()-t0)/dur), e=1-Math.pow(1-p,3);
       try{ win.scrollTo(0, start+(y-start)*e); }catch(err){} if(p<1) setTimeout(step,16); };
     step();
-  }
-  function autoScrollDemo(win,doc){
-    const yOf=(kw)=>{ try{ const el=[...doc.querySelectorAll('span')].find(e=>e.textContent.includes(kw)); return el ? el.getBoundingClientRect().top + (win.scrollY||0) - 24 : null; }catch(e){ return null; } };
-    const seq=[yOf('어디서 새는가'), yOf('비용 임팩트')].filter(v=>v!=null);
-    let i=0; const go=()=>{ if(i>=seq.length)return; smoothScrollTo(win, seq[i], 900); i++; setTimeout(go,2400); };
-    go();
   }
   function activateDemo(){
     const v=document.getElementById('demoVid'), f=document.getElementById('demoFrame');

@@ -192,13 +192,13 @@ export default function Intro({ onLaunch }) {
           <Reveal delay={80}>
             <h1 style={{ fontFamily: T.heading, fontWeight: 700, fontSize: "clamp(3.2rem,7.5vw,5.6rem)",
               lineHeight: 1.04, letterSpacing: -2, margin: "0 0 30px" }}>
-              발주를 더 이상<br />도박하지 않게.
+              조회는 AI가,<br />판단은 당신이.
             </h1>
           </Reveal>
           <Reveal delay={160}>
             <Lead style={{ fontSize: "1.4rem", maxWidth: 740, color: "#4E5968" }}>
-              "선박이 언제 도착하는가"가 아니라 — <span style={{ color: T.ink, fontWeight: 600 }}>언제 FC에 입고되어 판매 가능한 재고가 되는가.</span>
-              분절된 공공데이터(Port-MIS·UNI-PASS·KATI)를 통합해, 수입 신선식품 바이어의 발주 결정을 돕습니다.
+              수입식품 유통사 SCM 담당자에게 — <span style={{ color: T.ink, fontWeight: 600 }}>입항부터 FC 입고까지의 시점 예측과 센터 간 재고 밸런싱</span>을,
+              흩어진 데이터(Port-MIS·UNI-PASS·KATI)를 AI가 모아 분석합니다. 당신은 대시보드를 보고 판단만 하면 됩니다.
             </Lead>
           </Reveal>
           <Reveal delay={240}>
@@ -227,18 +227,19 @@ export default function Intro({ onLaunch }) {
       {/* 문제 */}
       <Section divider>
         <Reveal><Kicker>누구의, 얼마나 중요한 문제인가</Kicker></Reveal>
-        <Reveal delay={60}><H2>Ian은 매일 ‘발주 도박’을 한다</H2></Reveal>
+        <Reveal delay={60}><H2>FC가 늘수록, Ian은 자꾸 놓친다</H2></Reveal>
         <Reveal delay={120}>
           <Lead>
-            우리의 고객은 대형마트·식품 이커머스의 <strong>수입 신선식품 바이어(MD)</strong> ―
-            무엇을, 얼마나, 언제 발주할지 직접 결정하고 실행하는 사람입니다.
-            그의 KPI는 매출·마진, 그리고 <strong>결품률과 폐기율</strong>. 결품도 폐기도 결국 ‘바이어의 발주 실수’로 귀결됩니다.
+            우리의 고객은 수입식품 유통사의 <strong>SCM Instock 담당자 Ian</strong>입니다.
+            입항한 화물이 통관·운송을 거쳐 각 FC에 <strong>언제 입고되는지</strong> 예측하고,
+            센터별 재고를 보며 결품과 과재고 사이에서 <strong>재고 밸런싱</strong>을 잡는 사람입니다.
           </Lead>
         </Reveal>
         <Reveal delay={160}>
           <Lead>
-            그런데 통관 일정이 깜깜이라, 그는 매번 감(感)으로 발주합니다. 늦을까 봐 과발주하면 한꺼번에 들어와 폐기되고,
-            적게 발주하면 매대가 빕니다. 어느 쪽이든 그의 책임입니다.
+            주에도 몇 번씩 어느 FC는 결품으로 품절, 어느 FC는 과재고로 폐기비용이 늘어 욕을 먹습니다.
+            입고 시점은 단계마다 정보가 흩어져 예측이 어렵고, 재고는 FC마다 일일이 조회해 기준에 맞춰 수기로 밸런싱해야 합니다.
+            FC가 두어 개일 땐 됐지만, 센터가 여러 개로 늘면서 자꾸 놓치고, 밸런싱을 위한 운송 업무까지 겹쳐 버겁습니다.
           </Lead>
         </Reveal>
         <Reveal delay={200}>
@@ -255,8 +256,8 @@ export default function Intro({ onLaunch }) {
         <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 28, alignItems: "center" }}>
           <Reveal delay={120}>
             <Lead>
-              항만·통관·운송·FC의 데이터가 각자 흩어져 있어 ‘끝점’을 아무도 예측하지 않습니다. 그래서 FC마다 과대/과소 주문이 생기고,
-              재고가 잘못된 곳에 쌓여 결품과 폐기가 동시에 일어납니다.
+              입항→통관→반출→내륙→FC 입고까지, 단계마다 정보가 다른 시스템에 흩어져 ‘끝점(판매 가능 시점)’을 아무도 예측하지 않습니다.
+              게다가 FC마다 재고를 따로 조회해 사람이 수기로 밸런싱하다 보니, 센터가 늘수록 결품과 폐기가 동시에 터집니다.
             </Lead>
           </Reveal>
           <Reveal delay={180} style={{ display: "flex", justifyContent: "center", margin: "4px 0" }}>
@@ -265,13 +266,13 @@ export default function Intro({ onLaunch }) {
           <Reveal delay={220}>
             <Lead>
               “그런 솔루션은 이미 있지 않나? Windward, Portcast.” 맞습니다. 그러나 그들의 고객은 <strong>화주·포워더</strong>여서
-              관심은 ‘배가 어디 있나(ETA)’까지입니다. ‘FC에 입고돼 바이어가 팔 수 있는 시점’은 그들의 관심 밖입니다.
+              관심은 ‘배가 어디 있나(ETA)’까지입니다. ‘FC에 입고돼 팔 수 있는 시점’과 ‘센터 간 재고 밸런싱’은 그들의 관심 밖입니다.
             </Lead>
           </Reveal>
           <Reveal delay={260}>
             <Lead style={{ marginBottom: 0 }}>
-              {accent("진짜 근본원인")}은 수단의 부재가 아니라, <strong>이 고객(바이어)을 위해 분절된 한국 공공데이터를
-              발주 결정으로 엮을 이유를 가진 사람이 없었다</strong>는 것입니다.
+              {accent("진짜 근본원인")}은 수단의 부재가 아니라, <strong>유통사 SCM의 관점에서 분절된 데이터를 ‘입고 예측 + 재고 밸런싱’으로 엮어,
+              사람이 하던 조회·정리·판단 준비를 대신해 줄 도구가 없었다</strong>는 것입니다.
             </Lead>
           </Reveal>
         </div>
@@ -283,9 +284,9 @@ export default function Intro({ onLaunch }) {
         <Reveal delay={60}><H2>모은다 → 알아챈다 → 먼저 움직인다</H2></Reveal>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 18, marginTop: 8 }}>
           {[
-            { n: "01", icon: "collect", t: "모은다", c: T.blue, d: "Port-MIS·UNI-PASS·KATI를 통합해 Port-to-FC 리드타임 5구간 중 ‘어디서 새는가’를 한눈에 알아 볼 수 있게 병목부분을 강조해 줍니다." },
-            { n: "02", icon: "detect", t: "알아챈다", c: T.green, d: "평소 패턴(baseline) 이탈을 결품 발생 전에 감지해 경보. 시뮬레이션상 평균 7.4시간 선행 — 새벽에 깨지 않습니다." },
-            { n: "03", icon: "act", t: "먼저 움직인다", c: T.accent, d: "선제배치·재고 이관·발주 시점 제안까지. 위험에서 끝내지 않고 ‘그래서 무엇을 누를지’를 제시합니다." },
+            { n: "01", icon: "collect", t: "모은다", c: T.blue, d: "Port-MIS·UNI-PASS·KATI와 센터별 재고를 한곳에 모아, Port-to-FC 리드타임 5구간 중 ‘어디서 새는가’를 한눈에 보여줍니다." },
+            { n: "02", icon: "detect", t: "알아챈다", c: T.green, d: "AI가 흩어진 자료를 직접 분석해 입고 시점과 결품 위험을 도출하고, 평소 패턴 이탈을 결품 전에 경보합니다. 새벽에 연락받지 않아도 됩니다." },
+            { n: "03", icon: "act", t: "먼저 움직인다", c: T.accent, d: "센터 간 재고 밸런싱·선제배치·이관까지 계산해 제시합니다. 당신은 대시보드를 보고 ‘실행’만 누르면 됩니다." },
           ].map((s, i) => (
             <Reveal key={s.n} delay={120 + i * 90}>
               <div className="intro-card" style={{ background: T.card, border: `1px solid ${T.line}`, borderRadius: 18, padding: "30px 30px" }}>
@@ -367,13 +368,13 @@ export default function Intro({ onLaunch }) {
         <Reveal delay={60}><H2 light>Ian은 한 명이 아니다</H2></Reveal>
         <Reveal delay={120}>
           <p style={{ fontFamily: T.body, fontSize: "1.2rem", lineHeight: 1.7, color: "#B0B8C1", maxWidth: 720, margin: "0 0 14px" }}>
-            한국 수입 신선식품 바이어에서 시작해, 일반 수입품 → 아시아 콜드체인으로.
-            모든 수입 유통사의 바이어가 매일 같은 도박을 합니다. 2030년 5,000억 달러 시장입니다.
+            여러 FC를 둔 모든 수입식품 유통사에는 같은 고민을 안고 사는 SCM 담당자가 있습니다.
+            한국 수입식품에서 시작해 일반 수입품 → 아시아 콜드체인으로. 2030년 5,000억 달러 시장입니다.
           </p>
         </Reveal>
         <Reveal delay={180}>
           <p style={{ fontFamily: T.body, fontSize: "1.5rem", lineHeight: 1.5, color: T.paper, margin: "28px 0 28px" }}>
-            FreshFlow는 Ian이 더 이상 도박하지 않게 한다. <span style={{ color: "#5AA0FF" }}>감이 아니라, 데이터로.</span>
+            조회·정리는 AI가, 판단은 Ian이. <span style={{ color: "#5AA0FF" }}>똘똘한 부하직원처럼.</span>
           </p>
         </Reveal>
         <Reveal delay={240}>
