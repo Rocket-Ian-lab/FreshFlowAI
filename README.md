@@ -1,6 +1,6 @@
 # FreshFlow AI
 
-> 콜드체인 **Port-to-FC 관제탑** — 수입 신선식품 바이어를 위한 발주 의사결정 도구.
+> 콜드체인 **Port-to-FC 관제탑** — 수입식품 유통사 SCM 담당자를 위한 입고 예측·재고 밸런싱 도구.
 > "선박이 언제 도착하는가"가 아니라 **"언제 FC에 입고되어 판매 가능한 재고가 되는가"**.
 
 ### 🔗 라이브 데모 → **[fresh-flow-ai.vercel.app](https://fresh-flow-ai.vercel.app/)**
