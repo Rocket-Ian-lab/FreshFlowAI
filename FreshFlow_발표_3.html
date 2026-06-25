@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FreshFlow AI — Ian 바이어의 하루</title>
+<title>FreshFlow AI — SCM 담당자 Ian의 하루</title>
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -113,9 +113,9 @@
     <div class="subtle d3" style="font-size:1.05rem;">"선박이 언제 도착하는가"가 아니라 — "언제 팔 수 있는 재고가 되는가"</div>
     <div class="s1-alert">
       <div style="font-size:.85rem;color:var(--mint);font-weight:700;margin-bottom:.6rem;">AM 05:40</div>
-      <div style="font-size:1rem;color:var(--ice);line-height:1.4;">📱 OO점 연어 결품<br>행사 매대가 비었습니다</div>
+      <div style="font-size:1rem;color:var(--ice);line-height:1.4;">📱 인천 FC 연어 결품<br>매대가 비었습니다</div>
     </div>
-    <div style="position:absolute;right:6vw;top:30vh;font-size:.85rem;color:var(--dim);font-style:italic;">— 수입 신선식품 바이어 Ian의 하루</div>
+    <div style="position:absolute;right:6vw;top:30vh;font-size:.85rem;color:var(--dim);font-style:italic;">— 수입식품 유통사 SCM 담당자 Ian의 하루</div>
     <div class="d4" style="position:absolute;left:6vw;bottom:5vh;font-size:.85rem;color:var(--dim);">AI 해커톤 · Smart Logistics</div>
     <!-- Rocket_Ian_Lab 제작 CI (우하단) -->
     <img src="ril_horizontal_transp.png" class="d4" style="position:absolute;right:3vw;bottom:3.5vh;width:240px;opacity:.95;" alt="Rocket_Ian_Lab">
@@ -124,18 +124,18 @@
   <!-- S2 문제 -->
   <section class="slide" data-i="1">
     <div class="kicker d1">누구의, 얼마나 중요한 문제인가</div>
-    <h2 class="head d1">Ian은 매일 '발주 도박'을 한다</h2>
+    <h2 class="head d1">FC가 늘수록, Ian은 자꾸 놓친다</h2>
     <div class="grid2 d2" style="flex:1;">
       <div class="card">
         <div style="color:var(--mint);font-weight:700;margin-bottom:.6rem;">우리의 고객</div>
-        <div style="font-size:1.5rem;font-weight:700;color:var(--white);margin-bottom:1rem;">수입 신선식품 바이어 (MD)</div>
-        <p style="color:var(--ice);line-height:1.7;"><b>발주 결정권을 직접 쥔 사람</b><br><span style="color:var(--dim)">— 보고 → 바로 발주를 누른다</span></p>
-        <p style="color:var(--ice);line-height:1.7;margin-top:1rem;">KPI: 매출·마진·결품률·폐기율<br><span style="color:var(--dim)">결품도 폐기도 "바이어 발주 실수"로 귀결</span></p>
+        <div style="font-size:1.5rem;font-weight:700;color:var(--white);margin-bottom:1rem;">수입식품 유통사 SCM Instock 담당자</div>
+        <p style="color:var(--ice);line-height:1.7;"><b>입고 예측·재고 밸런싱을 책임</b><br><span style="color:var(--dim)">— 보고 → 판단·실행만 (똘똘한 부하직원)</span></p>
+        <p style="color:var(--ice);line-height:1.7;margin-top:1rem;">KPI: 결품률·폐기율·밸런싱 효율<br><span style="color:var(--dim)">어느 FC든 결품·과재고는 SCM 책임</span></p>
       </div>
       <div class="card">
         <div style="color:var(--mint);font-weight:700;margin-bottom:1rem;">한 사람 머리 위에서 충돌하는 변수</div>
         <div id="pains"></div>
-        <p style="color:var(--red);font-style:italic;margin-top:1rem;font-size:.95rem;">늦을까 봐 과발주 → 폐기 / 적게 발주 → 결품. 매번 감(感)으로.</p>
+        <p style="color:var(--red);font-style:italic;margin-top:1rem;font-size:.95rem;">FC가 늘수록 다 못 챙김 → 결품·폐기 동시. 밸런싱·운송까지 수기로.</p>
       </div>
     </div>
     <p class="d3" style="margin-top:2vh;font-size:.9rem;color:var(--dim);"><b class="accent">FAO</b> 식품 손실의 4천억 달러가 매장 도달 前 발생 · <b class="accent">업계 94%</b> "공급망 가시성 부재"를 최대 장애물로 지목</p>
@@ -148,8 +148,8 @@
     <div class="why d2" id="whychain"></div>
     <div class="reveal-box d3">
       <p style="font-size:1.2rem;font-style:italic;color:var(--ice);margin-bottom:1rem;">"그런 솔루션 이미 있잖아? Windward, Portcast."</p>
-      <p style="color:var(--ice);line-height:1.6;font-size:1.05rem;">맞습니다. 그런데 그들의 고객은 <b style="color:var(--amber)">화주·포워더</b> — 관심은 '배가 어디 있나(ETA)'까지. 'FC에 입고돼 Ian이 팔 수 있는 시점'은 그들 관심 밖.</p>
-      <p style="color:var(--white);line-height:1.6;font-size:1.1rem;margin-top:1.2rem;"><b class="accent">진짜 근본원인:</b> 수단의 부재가 아니라, <b>이 고객(바이어)을 위해 분절된 공공데이터를 발주 결정으로 엮을 이유를 가진 사람이 없었다.</b></p>
+      <p style="color:var(--ice);line-height:1.6;font-size:1.05rem;">맞습니다. 그런데 그들의 고객은 <b style="color:var(--amber)">화주·포워더</b> — 관심은 '배가 어디 있나(ETA)'까지. 'FC에 입고돼 팔 수 있는 시점'과 '센터 간 재고 밸런싱'은 그들 관심 밖.</p>
+      <p style="color:var(--white);line-height:1.6;font-size:1.1rem;margin-top:1.2rem;"><b class="accent">진짜 근본원인:</b> 수단의 부재가 아니라, <b>유통사 SCM 관점에서 분절된 데이터를 입고 예측+재고 밸런싱으로 엮어, 사람이 하던 조회·판단을 대신해 줄 도구가 없었다.</b></p>
     </div>
   </section>
 
@@ -164,7 +164,7 @@
       <div class="grid3">
         <div class="card"><div class="sol-icon" style="background:var(--mint)">①</div><h3 style="color:var(--white);margin:1rem 0 .6rem">어디서 새는가</h3><p style="color:var(--ice);line-height:1.6;font-size:.92rem">리드타임 5구간 중 통관·항만이 빨갛게 — 한눈에 병목 식별</p><p style="color:var(--mint);font-size:.82rem;font-style:italic;margin-top:1rem">Port-MIS·UNI-PASS 실시간</p></div>
         <div class="card"><div class="sol-icon" style="background:var(--green)">②</div><h3 style="color:var(--white);margin:1rem 0 .6rem">결품 전에 안다</h3><p style="color:var(--ice);line-height:1.6;font-size:.92rem">평소 패턴 이탈을 감지해 경보. 시뮬레이션상 평균 7.4h 선행</p><p style="color:var(--green);font-size:.82rem;font-style:italic;margin-top:1rem">새벽에 깨지 않는다</p></div>
-        <div class="card"><div class="sol-icon" style="background:var(--amber)">③</div><h3 style="color:var(--white);margin:1rem 0 .6rem">언제 발주하라</h3><p style="color:var(--ice);line-height:1.6;font-size:.92rem">이관 필요 / 분할발주까지 바로 누를 수 있는 결정</p><p style="color:var(--amber);font-size:.82rem;font-style:italic;margin-top:1rem">감이 아니라 근거로</p></div>
+        <div class="card"><div class="sol-icon" style="background:var(--amber)">③</div><h3 style="color:var(--white);margin:1rem 0 .6rem">어떻게 움직여라</h3><p style="color:var(--ice);line-height:1.6;font-size:.92rem">선제배치·재고 이관까지 바로 실행할 수 있는 결정</p><p style="color:var(--amber);font-size:.82rem;font-style:italic;margin-top:1rem">감이 아니라 근거로</p></div>
       </div>
       <p id="loading-note" style="text-align:center;color:var(--dim);font-size:.85rem;margin-top:3vh;">⟳ 라이브 데모 로딩 중… (인터넷 연결 시 인터랙티브 화면이 나타납니다)</p>
     </div>
@@ -189,7 +189,7 @@
           <tr><td style="color:var(--ice);font-weight:700">추적 범위</td><td style="color:var(--dim)">바다 위 ETA</td><td style="color:var(--white)">Port→FC 끝점</td></tr>
           <tr><td style="color:var(--ice);font-weight:700">핵심 질문</td><td style="color:var(--dim)">배가 언제 도착</td><td style="color:var(--white)">언제 팔 수 있나</td></tr>
           <tr><td style="color:var(--ice);font-weight:700">데이터</td><td style="color:var(--dim)">글로벌 AIS</td><td style="color:var(--white)">한국 공공 API</td></tr>
-          <tr><td style="color:var(--ice);font-weight:700">연결 대상</td><td style="color:var(--dim)">화물 위치</td><td style="color:var(--white)">FC 결품 + 발주</td></tr>
+          <tr><td style="color:var(--ice);font-weight:700">연결 대상</td><td style="color:var(--dim)">화물 위치</td><td style="color:var(--white)">FC 결품 + 재고 밸런싱</td></tr>
         </table>
         <p style="font-size:.8rem;color:var(--dim);font-style:italic;margin-top:.8rem;">시장성(상용) + 신규성(학술 공백) 양쪽 확인</p>
       </div>
@@ -205,10 +205,10 @@
     <p class="d2" style="font-size:.95rem;color:var(--dim);font-style:italic;margin-bottom:2vh;">버리고, 검증하고, 다시. — 조기경보도 시뮬레이션상 7.4h 선행이 나올 때까지 다섯 번 고쳤다.</p>
     <div class="card d3">
       <div style="color:var(--mint);font-weight:700;margin-bottom:.6rem;">시작은 뾰족하게, 확장은 크게</div>
-      <p style="font-size:1.1rem;"><b style="color:var(--white)">한국 수입 신선식품 바이어</b> <span style="color:var(--dim)">→ 일반 수입품 → 아시아 콜드체인 →</span> <b class="accent">2030년 5,000억 달러 시장</b></p>
-      <p style="font-size:.9rem;color:var(--ice);font-style:italic;margin-top:.6rem;">Ian은 한 명이 아니다 — 모든 수입 유통사의 바이어가 매일 같은 도박을 한다.</p>
+      <p style="font-size:1.1rem;"><b style="color:var(--white)">한국 수입식품 유통사 SCM</b> <span style="color:var(--dim)">→ 일반 수입 유통 → 아시아 콜드체인 →</span> <b class="accent">2030년 5,000억 달러 시장</b></p>
+      <p style="font-size:.9rem;color:var(--ice);font-style:italic;margin-top:.6rem;">Ian은 한 명이 아니다 — 여러 FC를 둔 모든 수입식품 유통사에 같은 SCM 담당자가 있다.</p>
     </div>
-    <p class="d4" style="text-align:center;margin-top:3vh;font-size:1.4rem;"><b style="color:var(--white)">FreshFlow는 Ian이 더 이상 도박하지 않게 한다.</b> <b class="accent" style="font-style:italic">감이 아니라, 데이터로.</b></p>
+    <p class="d4" style="text-align:center;margin-top:3vh;font-size:1.4rem;"><b style="color:var(--white)">FreshFlow는 Ian이 더 이상 놓치지 않게 한다.</b> <b class="accent" style="font-style:italic">조회는 AI가, 판단은 사람이.</b></p>
   </section>
 
 </div>
@@ -220,13 +220,13 @@
 <!-- 동적 콘텐츠 채우기 -->
 <script>
   // 충돌 변수 (S2)
-  const pains=[["🚢","통관 일정","언제 풀릴지 깜깜이"],["💸","운임 급등","원가를 못 잡음"],["📦","물량 변동","업체가 못 맞춤"],["🏭","FC 입고","센터가 재고를 안 받음"]];
+  const pains=[["🚢","입고 시점","단계마다 깜깜이"],["🏬","다(多) FC","재고 일일이 조회"],["⚖️","재고 밸런싱","수기로 판단"],["🚚","이관·운송","업무량 폭증"]];
   document.getElementById('pains').innerHTML = pains.map(p=>`<div style="display:flex;gap:.7rem;align-items:flex-start;margin-bottom:.7rem;"><span style="font-size:1.3rem">${p[0]}</span><div><div style="color:var(--white);font-weight:700">${p[1]}</div><div style="color:var(--dim);font-size:.85rem">${p[2]}</div></div></div>`).join('');
   // why chain (S3)
-  const whys=[["WHY 1","결품·폐기 동시","재고가 잘못된 곳에"],["WHY 2","입고 시점 불확실","FC마다 과·과소 주문"],["WHY 3","리드타임 깜깜이","끝점을 아무도 예측 안 함"],["WHY 4","정보 단절","항만·통관·운송·FC 각자"]];
+  const whys=[["WHY 1","결품·폐기 동시","재고가 잘못된 곳에"],["WHY 2","입고 시점 불확실","FC마다 수기 밸런싱"],["WHY 3","리드타임 깜깜이","끝점을 아무도 예측 안 함"],["WHY 4","정보 단절","항만·통관·운송·FC 각자"]];
   document.getElementById('whychain').innerHTML = whys.map((w,i)=>`<div class="why-card"><div style="color:var(--mint);font-weight:700;font-size:.75rem;margin-bottom:.5rem">${w[0]}</div><div style="color:var(--white);font-weight:700;margin-bottom:.4rem">${w[1]}</div><div style="color:var(--dim);font-size:.85rem">${w[2]}</div></div>${i<3?'<div class="why-arrow">→</div>':''}`).join('');
   // journey (S6)
-  const js=["물류센터 병목(TOC)","채찍효과","콜드체인 리드타임","5 Why → 바이어 발주 도박"];
+  const js=["물류센터 병목(TOC)","채찍효과","콜드체인 리드타임","5 Why → SCM 입고·밸런싱 부담"];
   document.getElementById('journey').innerHTML = js.map((j,i)=>`<div class="j-node">${i<3?'<div class="j-line"></div>':''}<div class="j-dot ${i===3?'last':''}"></div><div style="color:${i===3?'var(--mint)':'var(--ice)'};font-weight:${i===3?'700':'400'};font-size:.9rem">${j}</div></div>`).join('');
 
   // 슬라이드 네비게이션
