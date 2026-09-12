@@ -314,6 +314,11 @@ export default function FreshFlowAI() {
   const [senseError, setSenseError] = useState("");
   const riskAnimRef = useRef(null);
 
+  // 실데이터 연동(어댑터) — /api/live: 기상청(인천 실황·특보)·UNI-PASS(BL 통관진행) → 리스크 입력으로
+  const [liveLoading, setLiveLoading] = useState(false);
+  const [liveResult, setLiveResult] = useState(null);
+  const [liveError, setLiveError] = useState("");
+
   // AI 상세 진단(Claude API) 상태 — 규칙 기반은 항상 살아있고, 이건 부가 기능
   const [aiText, setAiText] = useState("");      // LLM 생성 진단
   const [aiLoading, setAiLoading] = useState(false);
@@ -487,12 +492,31 @@ ${senseText}`;
     }
   }
 
+  // 실시간 데이터 조회 → status가 live인 소스만 슬라이더에 반영(미연동 항목은 시뮬레이션/수동 값 유지)
+  async function fetchLiveData() {
+    setLiveLoading(true); setLiveError("");
+    try {
+      const q = selectedBl ? `?bl=${encodeURIComponent(selectedBl.bl)}` : "";
+      const res = await fetch(`/api/live${q}`);
+      if (!res.ok) throw new Error(`API ${res.status}`);
+      const data = await res.json();
+      setLiveResult(data);
+      const next = { ...risk }; let applied = 0;
+      for (const k of ["cong", "cust", "wx", "dock"]) {
+        if (data.sources?.[k]?.status === "live" && typeof data.risks?.[k] === "number") { next[k] = data.risks[k]; applied++; }
+      }
+      if (applied) { animateRiskTo(next); setMode("before"); setActionLog([]); setSenseResult(null); setAiText(""); setAiError(""); }
+    } catch (e) {
+      setLiveError("실시간 데이터를 가져오지 못했습니다 — 시뮬레이션 값을 유지합니다.");
+    } finally { setLiveLoading(false); }
+  }
+
   const setScenario = (s) => {
     setRisk(s === "normal"
       ? { cong: 0.2, cust: 0.2, wx: 0.1, dock: 0.2 }
       : { cong: 0.7, cust: 0.6, wx: 0.4, dock: 0.5 });
     setAiText(""); setAiError(""); // 시나리오 바뀌면 이전 AI 진단 초기화
-    setActionLog([]); setMode("before"); setSenseResult(null);
+    setActionLog([]); setMode("before"); setSenseResult(null); setLiveResult(null);
   };
 
   // BL 화물을 엔진에 적용: 해당 화물의 리스크·물량을 주입하고 이전 분석 초기화
@@ -503,7 +527,7 @@ ${senseText}`;
     setRisk(b.risk);
     setVol(b.vol);
     setAiText(""); setAiError("");
-    setActionLog([]); setMode("before"); setSenseResult(null);
+    setActionLog([]); setMode("before"); setSenseResult(null); setLiveResult(null);
   };
   const onBlSearch = () => {
     const b = lookupBl(blInput);
@@ -721,6 +745,44 @@ ${actLines}
           <Toggle options={[["normal", "평소", C.green], ["crisis", "위기", C.red]]}
             value={risk.cong > 0.5 ? "crisis" : "normal"} onChange={setScenario} />
         </Header>
+        {/* 🛰 실데이터 연동 — 어댑터 레이어(엔진 인터페이스 그대로, 데이터 소스만 교체). 소스별 상태를 정직하게 표기 */}
+        <div style={{ marginBottom: 14, padding: "10px 12px", background: C.panel2, border: `1px solid ${C.grid}`, borderRadius: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 12, fontWeight: 600 }}>🛰 실시간 데이터</span>
+            <span style={{ fontSize: 11, color: C.dim }}>기상청 인천 실황·특보 · 관세청 UNI-PASS{selectedBl ? ` · BL ${selectedBl.bl}` : " · (BL 선택 시 통관 조회)"}</span>
+            <button onClick={fetchLiveData} disabled={liveLoading} style={{
+              marginLeft: "auto", border: `1px solid ${C.blue}`, background: liveLoading ? C.grid : "transparent",
+              color: liveLoading ? C.dim : C.blue, borderRadius: 8, padding: "5px 12px", fontSize: 11, fontWeight: 700, cursor: liveLoading ? "default" : "pointer" }}>
+              {liveLoading ? "조회 중…" : "실시간 데이터 가져오기"}
+            </button>
+          </div>
+          {liveError && <div style={{ marginTop: 6, fontSize: 11, color: C.amber }}>{liveError}</div>}
+          {liveResult && (
+            <>
+              <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(210px,1fr))", gap: 6 }}>
+                {RISKS.map((r) => {
+                  const s = liveResult.sources?.[r.key] || {}; const v = liveResult.risks?.[r.key];
+                  const live = s.status === "live";
+                  const col = live ? C.green : (s.status === "error" || s.status === "notfound") ? C.amber : C.dim;
+                  const label = live ? "실시간" : s.status === "nokey" ? "키 미설정" : s.status === "notfound" ? "BL 없음" : s.status === "error" ? "오류" : "미연동";
+                  return (
+                    <div key={r.key} title={s.src} style={{ background: C.panel, border: `1px solid ${C.grid}`, borderLeft: `3px solid ${col}`, borderRadius: 8, padding: "6px 9px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11 }}>
+                        <span style={{ fontWeight: 600 }}>{r.name}</span>
+                        <span style={{ fontWeight: 700, color: col }}>{label}{live && typeof v === "number" ? ` ${Math.round(v * 100)}%` : ""}</span>
+                      </div>
+                      <div style={{ fontSize: 10, color: C.dim, marginTop: 2 }}>{s.detail || "—"}</div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ marginTop: 6, fontSize: 10, color: C.dim }}>
+                실시간 소스만 슬라이더에 반영되고, 미연동 항목은 시뮬레이션/수동 값을 유지합니다
+                {liveResult.stage ? ` · UNI-PASS 진행단계: ${liveResult.stage}` : ""} · 조회 {new Date(liveResult.fetchedAt).toLocaleTimeString("ko-KR")}
+              </div>
+            </>
+          )}
+        </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 16, marginTop: 4 }}>
           {RISKS.map((r) => (
             <div key={r.key}>

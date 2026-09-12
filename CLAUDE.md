@@ -31,6 +31,7 @@
 
 - **프론트엔드**: React. `App.jsx`(상단 내비 + 뷰 전환) → `FreshFlowAI.jsx`(대시보드) / `Intro.jsx`(소개자료). 외부 상태관리 불필요, useState/useMemo만.
 - **AI**: Claude API (`claude-sonnet-4-6`), 로컬은 `server.js`(Express) 프록시로 `ANTHROPIC_API_KEY` 중계. 키 없으면 규칙기반 폴백.
+- **실데이터**: `lib/live.js` 어댑터 → `GET /api/live?bl=`(로컬 `server.js` / 배포 `api/live.js`). 기상청 인천 실황·특보(`DATA_GO_KR_KEY`) + UNI-PASS 통관진행(`UNIPASS_KEY`) → 리스크 입력. 키 없으면 소스별 `nokey`로 표기하고 시뮬레이션 값 유지(섹션 5).
 - **스타일**: 인라인 스타일 + **Toss 스타일 토큰**(toss.im/team 참고). 대시보드 상수 `C`, 내비 `N`(App.jsx), 소개자료 `T`(Intro.jsx) 모두 동일 팔레트: 배경 #F2F4F6 / 카드 #FFFFFF / 잉크 #191F28 / 보조 #6B7684 / 보더 #E5E8EB / **액센트 토스블루 #3182F6**(블루 forward) / semantic red #F04452·amber #FF9500·green #00B26C. 색 중앙화 → 테마 교체는 토큰 재정의만으로. **폰트: Pretendard**(한글 최적, index.html CDN) + 숫자 IBM Plex Mono. 큰 헤드라인·넉넉한 여백·부드러운 스크롤·모듈형 카드. 개인 CI(RocketIanLab)는 고유색 유지. 외부 CSS 의존 없음. 과거 지침: `Anthropic스타일_디자인가이드.md`.
 - **브랜드**: 제품 로고 `Logo.jsx`(Port→FC 경로 모티프) + 개인 CI `RocketIanLab.jsx`. 둘 다 인라인 SVG, 상단 내비에 배치.
 - **소개자료**: `Intro.jsx` — 발표 내용(문제→근본원인→솔루션→검증→비전)을 Anthropic 에디토리얼(세로 스크롤)로 재구성. "소개자료" 탭에서 접근. 원본 발표 덱: `FreshFlow_발표_3.html`.
@@ -243,15 +244,16 @@ fetch("https://api.anthropic.com/v1/messages", {
 
 ## 5. 데이터 소스 연동 (공공 API)
 
-| 구간 | API | 상태 | 비고 |
+| 구간/리스크 | API | 연동 상태 | 비고 |
 |---|---|---|---|
-| 항만 | 해수부 **Port-MIS** 선박입항·관제정보 (공공데이터포털) + AIS | 신청 즉시 가능 | 입출항 시각, 선박위치 |
-| 통관 | 관세청 **UNI-PASS** 화물통관진행정보 API | 신청 즉시 가능 | 화물관리번호/BL로 진행단계 조회(XML) |
-| 통관리스크 | aT **KATI** 농식품 통관문제 사례 API | 가능 | 검역 불합격 사유·발생연월 |
-| FC입고 | 자사 **WMS** Dock | 자사 시스템 | 완전 실시간 |
+| 기상(wx) | 기상청 **초단기실황**(`getUltraSrtNcst`, 인천 격자 nx55/ny124) + **기상특보**(`getWthrWrnList`, stnId 109) — 공공데이터포털 | ✅ **연동 완료** (`DATA_GO_KR_KEY`) | 강수·풍속·기온·눈·특보 → `weatherToWx()` 0~1 |
+| 통관(cust) | 관세청 **UNI-PASS** 화물통관진행정보(`cargCsclPrgsInfoQry`, MBL→HBL 재시도) | ✅ **연동 완료** (`UNIPASS_KEY`) | 진행단계 XML → `parseUnipass()` → stage + cust |
+| 항만(cong) | 해수부 **Port-MIS** 선박입항·관제정보 + AIS | ⏳ 미연동(`unavailable`) | 데이터셋 키/엔드포인트 확정 후 `getLive()`에 추가 |
+| 통관리스크 | aT **KATI** 농식품 통관문제 사례 API | ⏳ 미연동 | 검역 불합격 사유·발생연월 → cust 보정에 활용 예정 |
+| FC입고(dock) | 자사 **WMS** Dock | ⏳ 자사 시스템 | 완전 실시간 가능 |
 | 내륙운송 | 운송사 **TMS**/GPS | Phase 2 | 표준화 미비, MVP는 추정 |
 
-**연동 시 주의**: API는 원시 진행단계(이벤트)를 주므로, 이를 "구간 경과시간"으로 변환하는 어댑터 레이어가 필요. 현재 시뮬레이션 상수(base×리스크)를 이 어댑터 출력으로 교체하면 됨. 즉 **엔진 인터페이스는 그대로, 데이터 소스만 교체**하는 구조.
+**어댑터 구조(구현됨)**: `lib/live.js`의 `getLive(env,{bl})`가 소스별로 **독립 실행**해 `{ risks{cong,cust,wx,dock}, stage, sources{status: live|nokey|error|notfound|unavailable, detail} }`를 반환. 프론트(①의 "🛰 실시간 데이터")는 **`status==='live'`인 항목만** 슬라이더에 반영하고 나머지는 시뮬레이션/수동 값을 유지, 소스별 상태를 배지로 정직 표기. 엔드포인트는 로컬 `server.js`·배포 `api/live.js`가 동일 모듈을 사용(키는 서버측 env). 순수 정규화는 `test_liveadapter.mjs`로 검증. **엔진 인터페이스는 그대로, 데이터 소스만 교체**하는 구조 유지.
 
 ---
 
@@ -302,6 +304,15 @@ fetch("https://api.anthropic.com/v1/messages", {
 - **UI**: 섹션 ⑥ — Stripe 큰-숫자 KPI 3개(적용 전/후/절감액·%) + 결품·폐기 Before/After 비교 바 + 운송비 투입 라인(`Stat`,`ComparBar`). AI 프롬프트에도 주입. 가정 명시.
 - **검증값** (`test_costimpact.mjs`, 위기·체리 12000): 적용 전 ₩2,882만(결품 3,565개+폐기 2,665개) → 적용 후 ₩287만(결품·폐기 0, 운송비 배치4000+이관2665) → **순절감 ₩2,596만(90%)**.
 - **정직성**: 폐기는 "선제조치 안 하면 발생할 예상손실"로 정의 → 이관으로 해소. 운송비를 비용으로 명시해 "운송비 투입 < 결품·폐기 절감"의 순ROI를 정직하게 표현.
+
+### 실데이터 연동 어댑터 (✅ 구현 완료) — 시뮬레이션 상수 → 실제 공공 API
+> 섹션 5의 "엔진 인터페이스는 그대로, 데이터 소스만 교체" 구조를 실제로 구현. 키만 넣으면 실시간 값이 리스크 입력으로 흐른다.
+- **모듈**: `lib/live.js` — `kmaBase()`(KST 45분 전 정시), `weatherToWx(items, warnTitles)`(강수·풍속·기온·눈·특보 → wx), `parseUnipass(xml)`(관용 XML 파서 → stage/cust), `fetchKma()`·`fetchUnipass()`(8s 타임아웃, MBL→HBL 재시도), `getLive(env,{bl})`(소스별 독립·정직 status).
+- **엔드포인트**: `GET /api/live?bl=` — 로컬 `server.js`, 배포 `api/live.js`(Vercel). `/api/health`에 `live.dataGoKr/unipass` 키 보유 여부.
+- **UI**: ① 선적 리스크 상단 "🛰 실시간 데이터" 패널 — 버튼 → 소스별 카드(실시간/키 미설정/BL 없음/오류/미연동 + 근거 detail) → `live`만 `animateRiskTo`로 슬라이더 반영, 시나리오/BL 변경 시 초기화.
+- **키**: `DATA_GO_KR_KEY`(공공데이터포털: 기상청 단기예보·기상특보 활용신청, 인코딩/디코딩키 모두 OK), `UNIPASS_KEY`(관세청 UNI-PASS Open API 인증키). 로컬 `.env`, 배포 Vercel 환경변수.
+- **검증**(`test_liveadapter.mjs`, 12건): 평온 wx .05 / 폭우+강풍 .75 / +태풍·강풍 특보 1.0 / 폭염+특보 .45, 단조성; UNI-PASS 인증키 오류→error, tCnt=0→notfound, 검사대상→customs·.6, 수리→release·.15, 입항→port; base 시각 포맷. 로컬 스모크: 키 없이 `/api/live` → `nokey/unavailable` 응답, 서버 무중단.
+- **정직성**: 소스별 status를 화면에 그대로 노출. 항만(Port-MIS)·FC Dock·KATI는 `unavailable`로 표기(데이터셋 확정/자사 시스템 필요) — "다 된다"고 표시하지 않음. wx 매핑은 명시적 휴리스틱.
 
 ### Phase 2-D: ETA 고도화 (미구현 — 데이터 필요)
 > 외부 평가 조언(2번) 반영. **정직성 원칙**상 분포 데이터 없이 확률 ETA를 단정하지 않음 — 데이터 확보 후 단계 격상.
@@ -356,7 +367,10 @@ fetch("https://api.anthropic.com/v1/messages", {
 AI 해커톤/                     # Vite + React 프로젝트 루트
 ├── index.html                # 진입 (Google Fonts: Poppins/Lora 로드)
 ├── vite.config.js            # @vitejs/plugin-react + /api → 프록시(8787)
-├── server.js                 # Claude API 프록시(Express) — ANTHROPIC_API_KEY 중계
+├── server.js                 # Express: Claude 프록시(/api/messages) + 실데이터(/api/live) + health
+├── api/messages.js · api/live.js   # Vercel 서버리스(배포용) — server.js와 동일 역할
+├── lib/live.js               # 실데이터 어댑터(기상청·UNI-PASS 정규화 + fetch) — 로컬/배포 공용
+├── test_liveadapter.mjs      # 어댑터 순수 함수 검증(12건)
 ├── src/
 │   ├── main.jsx              # createRoot로 <App/> 렌더
 │   ├── App.jsx               # 상단 내비 + 뷰 전환(대시보드/소개자료)

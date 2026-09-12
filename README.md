@@ -23,14 +23,14 @@ FC별 결품 위험을 진단해 선제배치·이관·발주 시점을 제안�
 ## 로컬 실행
 ```bash
 npm install
-cp .env.example .env   # ANTHROPIC_API_KEY 입력 (선택 — 없으면 규칙기반 폴백)
+cp .env.example .env   # ANTHROPIC_API_KEY (AI) · DATA_GO_KR_KEY (기상청) · UNIPASS_KEY (통관) — 모두 선택, 없으면 폴백
 npm run dev            # Vite(5173) + 프록시(8787) 동시 실행
 ```
 키가 없어도 규칙기반 진단은 항상 동작하므로 데모는 멈추지 않습니다.
 
 ## 배포 (Vercel)
 1. 이 레포를 [Vercel](https://vercel.com)에서 **Import** (Framework: Vite 자동 감지)
-2. **Environment Variables**에 `ANTHROPIC_API_KEY` 추가
+2. **Environment Variables**에 `ANTHROPIC_API_KEY` 추가 — 실시간 데이터까지 쓰려면 `DATA_GO_KR_KEY`(공공데이터포털: 기상청 단기예보·기상특보 활용신청)와 `UNIPASS_KEY`(관세청 UNI-PASS 인증키)도 추가. 없으면 해당 소스는 "키 미설정"으로 표시되고 시뮬레이션 값을 유지
 3. Deploy — 정적 빌드는 `dist`, `/api/messages`는 서버리스 함수(`api/messages.js`)로 동작
 
 > 🔒 API 키는 `.env`(gitignore)와 Vercel 환경변수에만 존재하며 레포·번들에 포함되지 않습니다.

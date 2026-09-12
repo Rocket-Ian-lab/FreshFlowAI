@@ -4,6 +4,7 @@
 // 키가 없으면 503을 돌려주고, 프론트는 규칙기반 진단으로 폴백한다(데모 안 멈춤).
 import express from "express";
 import dotenv from "dotenv";
+import { getLive } from "./lib/live.js";
 
 dotenv.config();
 
@@ -15,7 +16,21 @@ const PORT = process.env.PROXY_PORT || 8787;
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 
 app.get("/api/health", (_req, res) => {
-  res.json({ ok: true, hasKey: Boolean(KEY) });
+  res.json({
+    ok: true, hasKey: Boolean(KEY),
+    live: { dataGoKr: Boolean(process.env.DATA_GO_KR_KEY), unipass: Boolean(process.env.UNIPASS_KEY) },
+  });
+});
+
+// 실데이터 어댑터: 기상청(인천 실황·특보) + UNI-PASS(BL 통관진행) → 엔진 리스크 입력
+app.get("/api/live", async (req, res) => {
+  const bl = String(req.query.bl || "").trim();
+  try {
+    const data = await getLive(process.env, { bl });
+    res.set("Cache-Control", "no-store").json(data);
+  } catch (e) {
+    res.status(500).json({ error: `실데이터 조회 실패: ${String(e?.message || e)}` });
+  }
 });
 
 app.post("/api/messages", async (req, res) => {
