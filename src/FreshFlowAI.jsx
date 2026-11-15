@@ -19,8 +19,8 @@ import { planBridge } from "../lib/bridge.js"; // 입고 전 공백(브리지) �
 const SEGMENTS = [
   { key: "port",    name: "항만 대기·하역", base: 8,  drivers: { cong: 1.2, wx: 0.6 }, source: "live", src: "Port-MIS · AIS",
     srcDesc: "해수부 Port-MIS 선박입항·관제정보 공공 API + AIS 선박위치로 접안 대기 추적" },
-  { key: "customs", name: "통관·검역",      base: 12, drivers: { cust: 1.5, wx: 0.2 }, source: "live", src: "UNI-PASS · KATI",
-    srcDesc: "관세청 UNI-PASS 화물통관진행정보 API(실시간 진행단계) + aT KATI 농식품 통관문제 사례(검역 불합격 리스크 이력)" },
+  { key: "customs", name: "통관·검역",      base: 12, drivers: { cust: 1.5, wx: 0.2 }, source: "live", src: "UNI-PASS · 식약처",
+    srcDesc: "관세청 UNI-PASS 화물통관진행정보 API(진행단계·처리일시) + 식약처 수입식품정보마루·UNI-PASS 검사검역(수입 검사·부적합 이력)" },
   { key: "release", name: "컨테이너 반출",  base: 4,  drivers: { cong: 0.5 },          source: "semi", src: "UNI-PASS 반출상태",
     srcDesc: "UNI-PASS 물품반출 상태값. 보세창고 시스템 연동 정도에 따라 지연 가능" },
   { key: "inland",  name: "냉장 내륙운송",  base: 6,  drivers: { wx: 0.7, cong: 0.2 }, source: "est",  src: "운송사 TMS(Phase2)",
@@ -153,7 +153,7 @@ function recommend(fcsInit, ltDays, vol) {
 
 // ── Phase 2-A: 이상 신호 조기경보 ────────────────────────────
 // baseline(평소 리드타임 평균·표준편차) 대비 z-score 이탈 + 추세 외삽으로
-// 결품 도달 "전에" 경보. 검증: 평균 선행 7.4h, 오경보율 1.5%.
+// 결품 도달 "전에" 경보. 검증(test_earlywarn.mjs, 합성 시계열 200회): 평균 선행 7.4h, 정상 상황 오경보 0회.
 function detectEarlyWarning(history, highThresholdHrs) {
   // history: 최근 리드타임(hr) 관측 배열 (최신이 마지막)
   if (history.length < 6) return { warn: false };
@@ -389,7 +389,7 @@ export default function FreshFlowAI() {
         title: `선제배치 실행 — 신규 선적 ${vol.toLocaleString()}개 배분`,
         basis: `결품 위험 ${bHigh.length}개 FC (${bHigh.map((f) => f.name).join("·")})`,
         lines: rec.actions,
-        effect: `결품 High ${bHigh.length}개 → ${aHigh.length}개${aHigh.length === 0 ? " 전량 해소" : ""}`,
+        effect: `결품 High ${bHigh.length}개 → ${aHigh.length}개 (도착 후 재고 커버리지 기준)`,
         cta: "배치 실행", apply: "after",
       });
     }
@@ -426,6 +426,12 @@ export default function FreshFlowAI() {
   const timeAfterTotal = bridge.totals.residual * price * COST.lostMargin + costAfter.spoilCost
     + costAfter.placedUnits * COST.inbound + Math.max(costAfter.movedUnits, bridge.totals.bridged) * COST.transfer;
   const timeSavedPct = costBefore.total > 0 ? Math.round((1 - timeAfterTotal / costBefore.total) * 1000) / 10 : 0;
+  // 화면의 큰 숫자는 시간축 검증 값을 기준으로 한다(정적 비용모델 값은 참고로 병기). 도착 전 공백이 없으면 두 값은 같다.
+  const shownSaved = costBefore.total - timeAfterTotal;
+  const shownPct = costBefore.total > 0 ? Math.round((shownSaved / costBefore.total) * 100) : 0;
+  const shownStockoutUnits = bridge.totals.residual;
+  const shownMoved = Math.max(costAfter.movedUnits, bridge.totals.bridged);
+  const shownTransport = costAfter.placedUnits * COST.inbound + shownMoved * COST.transfer;
 
   // 액션 실행(데모): 로그에 기록하고, 선제배치는 ③ 뷰를 AFTER로 전환해 효과를 즉시 시각화
   const runAction = (item) => {
@@ -594,7 +600,7 @@ ${actLines}
 
 [입고 전 공백 검증] 신규 선적은 ${lt.total.toFixed(1)}시간 뒤 도착. 그 전에 소진되는 FC: ${bridge.receivers.length ? bridge.receivers.map((r) => `${r.name} ${r.stockoutAt}시간 뒤`).join(", ") : "없음"}. 긴급 이관(브리지) ${bridge.totals.bridged.toLocaleString()}개로 도착 전 품절 ${bridge.totals.need.toLocaleString()}개 → ${bridge.totals.residual.toLocaleString()}개
 
-[비용 임팩트] FreshFlow 적용 전 손실 ${fmtWon(costBefore.total)} → 적용 후 ${fmtWon(costAfter.total)} (정적 비용모델 절감 ${fmtWon(costSaved)}, ${savedPct}%) · 시간축 검증 반영 시 적용 후 ${fmtWon(timeAfterTotal)} (${timeSavedPct}% 감소)
+[비용 임팩트 · 가정 기반 비용모델] FreshFlow 적용 전 예상손실 ${fmtWon(costBefore.total)} → 적용 후 ${fmtWon(timeAfterTotal)} (절감 ${fmtWon(shownSaved)}, ${timeSavedPct}%, 신규 선적 도착 전 공백 반영) · 참고: 공백을 반영하지 않은 정적 모델은 ${savedPct}%
 
 위 데이터로 아래 세 항목을 작성하세요. 반드시 각 항목을 지정된 머리말과 세로줄(|)로 시작하고, 한 항목은 한 줄(줄바꿈 없이)로 쓰세요:
 진단| 가장 위급한 상황과 그 원인이 어느 리드타임 구간에서 비롯됐는지 1~2문장.
@@ -982,7 +988,7 @@ ${actLines}
           </div>
         )}
         <div style={{ marginTop: 8, fontSize: 11, color: C.dim }}>
-          baseline(평소 평균±표준편차) 대비 z-score 이탈 + 추세 외삽으로 결품 <b>전에</b> 경보 · 검증: 평균 7.4시간 선행, 오경보율 1.5%
+          baseline(평소 평균±표준편차) 대비 z-score 이탈 + 추세 외삽으로 결품 <b>전에</b> 경보 · 합성 시계열 200회 검증: 평균 7.4시간 선행, 정상 상황 오경보 0회
         </div>
 
         {/* 주문 시점 제안 (Two-way) */}
@@ -1082,8 +1088,13 @@ ${actLines}
                 ))}
                 <div style={{ marginTop: 10, paddingTop: 10, borderTop: `0.5px solid ${C.grid}`, fontSize: 12 }}>
                   조치 후 결품 위험 FC <b style={{ color: C.red }}>{bHigh.length}개</b> → <b style={{ color: C.green }}>{aHigh.length}개</b>
-                  {aHigh.length === 0 && <span style={{ color: C.green }}> 전량 해소</span>}
+                  <span style={{ color: C.dim }}> (도착 후 재고 커버리지 기준)</span>
                 </div>
+                {bridge.totals.need > 0 && (
+                  <div style={{ marginTop: 4, fontSize: 11, color: C.amber }}>
+                    신규 선적 도착 전 공백: 품절 {bridge.totals.need.toLocaleString()}개 → 긴급 이관으로 {bridge.totals.residual.toLocaleString()}개 (⑤에서 검증)
+                  </div>
+                )}
                 {topLeaks.length > 0 && (
                   <div style={{ marginTop: 6, fontSize: 11, color: C.dim }}>
                     + {topLeaks[0].name} 지연이 크므로 {topLeaks[0].name.includes("통관") ? "통관·검역 서류 사전 점검" : topLeaks[0].name.includes("항만") ? "하역 슬롯 선점" : "냉장차 배차 선점"} 권장
@@ -1250,7 +1261,7 @@ ${actLines}
 
       {/* ⑥ 비용 임팩트 · Before vs After */}
       <Section>
-        <Header label="⑥ 비용 임팩트 · 개입 전 vs FreshFlow 적용 후">
+        <Header label="⑥ 비용 임팩트 · 개입 전 vs FreshFlow 적용 후 (가정 기반 비용모델)">
           <span style={{ fontSize: 11, color: C.dim }}>
             {selectedBl ? `${selectedBl.item} · 단가 ${fmtWon(price)}/개` : `단가 ${fmtWon(price)}/개 (기본)`}
           </span>
@@ -1259,14 +1270,14 @@ ${actLines}
         {/* 헤드라인 KPI (큰 숫자) */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12, marginTop: 6 }}>
           <Stat label="FreshFlow 적용 전" value={fmtMan(costBefore.total)} sub={fmtWon(costBefore.total)} color={C.red} />
-          <Stat label="FreshFlow 적용 후" value={fmtMan(costAfter.total)} sub={fmtWon(costAfter.total)} color={C.amber} />
-          <Stat label={`절감액 (${savedPct}%↓)`} value={fmtMan(costSaved)} sub={fmtWon(costSaved)} color={C.green} big />
+          <Stat label="FreshFlow 적용 후" value={fmtMan(timeAfterTotal)} sub={fmtWon(timeAfterTotal)} color={C.amber} />
+          <Stat label={`예상손실 감소 (${shownPct}%↓)`} value={fmtMan(shownSaved)} sub={fmtWon(shownSaved)} color={C.green} big />
         </div>
 
         {/* 손실 항목별 Before/After 비교 */}
         <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 12 }}>
           {[
-            { name: "결품 예상손실", b: costBefore.stockoutCost, a: costAfter.stockoutCost, bu: costBefore.stockoutUnits, au: costAfter.stockoutUnits },
+            { name: "결품 예상손실", b: costBefore.stockoutCost, a: shownStockoutUnits * price * COST.lostMargin, bu: costBefore.stockoutUnits, au: shownStockoutUnits },
             { name: "재고폐기 예상손실", b: costBefore.spoilCost, a: costAfter.spoilCost, bu: costBefore.overUnits, au: costAfter.overUnits },
           ].map((row) => {
             const max = Math.max(row.b, row.a, 1);
@@ -1287,26 +1298,26 @@ ${actLines}
         <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.grid}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
           <span style={{ fontSize: 12 }}>
             <span style={{ fontWeight: 600 }}>＋ 운송비 투입</span>
-            <span style={{ color: C.dim, fontSize: 11 }}> (선제배치 {costAfter.placedUnits.toLocaleString()}개 · 과재고 이관 {costAfter.movedUnits.toLocaleString()}개)</span>
+            <span style={{ color: C.dim, fontSize: 11 }}> (선제배치 {costAfter.placedUnits.toLocaleString()}개 · FC 간 이관 {shownMoved.toLocaleString()}개)</span>
           </span>
-          <span style={{ fontSize: 14, fontWeight: 700, color: C.amber, fontFamily: "'IBM Plex Mono', monospace" }}>{fmtWon(costAfter.transportCost)}</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: C.amber, fontFamily: "'IBM Plex Mono', monospace" }}>{fmtWon(shownTransport)}</span>
         </div>
 
         {/* 시간축 검증 반영 — 정적 비용모델은 결품 0을 가정하므로, 신규 선적 도착 전 잔여 결품과 실제 브리지 이관량을 반영한 값을 나란히 표기 */}
         {bridge.totals.need > 0 && (
           <div style={{ marginTop: 12, padding: "11px 13px", background: C.panel2, border: `1px solid ${C.grid}`, borderRadius: 10, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
             <span style={{ fontSize: 12 }}>
-              <span style={{ fontWeight: 700 }}>⏱ 시간축 검증 반영</span>
-              <span style={{ color: C.dim, fontSize: 11 }}> (도착 전 잔여 결품 {bridge.totals.residual.toLocaleString()}개 · 브리지 이관 {bridge.totals.bridged.toLocaleString()}개 · {bridgeMode === "full" ? "전량 메움" : "안전재고 유지"})</span>
+              <span style={{ fontWeight: 700 }}>⏱ 위 수치는 시간축 검증 반영</span>
+              <span style={{ color: C.dim, fontSize: 11 }}> (도착 전 잔여 결품 {bridge.totals.residual.toLocaleString()}개 · 브리지 이관 {bridge.totals.bridged.toLocaleString()}개 · {bridgeMode === "full" ? "전량 메움" : "안전재고 유지"} — ⑤에서 선택)</span>
             </span>
-            <span style={{ fontSize: 13, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace" }}>
-              적용 후 {fmtWon(timeAfterTotal)} <span style={{ color: C.green }}>({timeSavedPct}%↓)</span>
+            <span style={{ fontSize: 11, color: C.dim, fontFamily: "'IBM Plex Mono', monospace" }}>
+              참고 · 공백을 반영하지 않은 정적 모델: 적용 후 {fmtWon(costAfter.total)} ({savedPct}%↓)
             </span>
           </div>
         )}
 
         <div style={{ marginTop: 12, fontSize: 10, color: C.dim }}>
-          가정 — 결품 예상손실 = 부족분 × 단가 × 마진율 {Math.round(COST.lostMargin * 100)}% · 재고폐기 예상손실(선제조치 안 할 경우) = 목표초과 잉여 × 단가 × 폐기율 {Math.round(COST.spoilRate * 100)}% · 운송비 = 배치 {fmtWon(COST.inbound)}/개 + 이관 {fmtWon(COST.transfer)}/개. 이 화물 1건 기준 · 실데이터 연동 시 정밀화. 위 큰 숫자는 결품 0을 가정한 정적 비용모델이며, 시간축 검증 값은 신규 선적 도착 전 공백을 반영합니다. 모두 가정 기반 추정이고 실측이 아닙니다.
+          가정 — 결품 예상손실 = 부족분 × 단가 × 마진율 {Math.round(COST.lostMargin * 100)}% · 재고폐기 예상손실(선제조치 안 할 경우) = 목표초과 잉여 × 단가 × 폐기율 {Math.round(COST.spoilRate * 100)}% · 운송비 = 배치 {fmtWon(COST.inbound)}/개 + 이관 {fmtWon(COST.transfer)}/개. 이 화물 1건 기준 · 실데이터 연동 시 정밀화. 큰 숫자는 신규 선적 도착 전 공백을 반영한 값이며(FC 간 이관 6시간 가정), 모두 가정 기반 추정이고 실측이 아닙니다.
         </div>
       </Section>
     </div>

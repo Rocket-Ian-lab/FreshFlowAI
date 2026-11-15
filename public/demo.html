@@ -76,7 +76,7 @@
         [2200, '③ 실시간 모니터링 실행', ()=>{ const b=btn('실시간 모니터링 시작'); if(b)b.click(); }],
         [4600, '④ 선제 조치 — 보고 바로 실행', ()=>scrollTo('선제 조치')],
         [2200, '④ 선제배치 실행 → 결품 위험 2→0', ()=>{ const b=btn('배치 실행'); if(b)b.click(); }],
-        [4600, '⑤ 비용 임팩트 — 순절감 확인', ()=>scrollTo('비용 임팩트')],
+        [4600, '⑤ 비용 임팩트 — 예상손실 감소 확인', ()=>scrollTo('비용 임팩트')],
       ];
       let i=0;
       const next=()=>{ if(i>=steps.length){ replay.classList.add('on'); return; }

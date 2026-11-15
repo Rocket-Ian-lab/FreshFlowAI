@@ -5,15 +5,16 @@
 
 ### 🔗 라이브 데모 → **[fresh-flow-ai.vercel.app](https://fresh-flow-ai.vercel.app/)**
 
-분절된 공공데이터(Port-MIS · UNI-PASS · KATI)를 통합해 Port-to-FC 리드타임을 예측하고,
+분절된 공공데이터(Port-MIS · UNI-PASS · 식약처 수입식품 검사 정보)를 통합해 Port-to-FC 리드타임을 예측하고,
 FC별 결품 위험을 진단해 선제배치·이관·발주 시점을 제안하는 React 대시보드입니다.
 
 ## 주요 기능
 - **⓪ 화물 조회(BL)** — UNI-PASS식 통관 진행 추적, 가상 BL로 시연
 - **① 리스크 입력 / ② 리드타임 분해** — "어디서 새는가" + 이상치 하이라이트 + 신선도 손실 위험
-- **②-B 조기경보(z-score)** — 결품 전 평균 7.4시간 선행
+- **②-B 조기경보(z-score)** — 합성 시계열 200회에서 임계 도달 평균 7.4시간 전 경보
 - **③ 결품 위험 / ④ AI Copilot(요나)** — Claude 기반 자연어 진단(+규칙기반 폴백)
-- **⑤ 선제 조치(Prescriptive)** — 1-click 실행, **⑥ 비용 임팩트** — Before/After ₩ 환산
+- **⑤ 선제 조치(Prescriptive)** — 신규 선적 도착 전 공백을 센터 간 긴급 이관으로 메우는 시간축 검증 + 모의 실행
+- **⑥ 비용 임팩트** — Before/After ₩ 환산 (가정 기반 비용모델, 위기 시나리오 예상손실 79~88% 감소)
 - **소개자료** 탭 — 제품 스토리 에디토리얼
 
 ## 기술 스택
@@ -38,7 +39,10 @@ npm run dev            # Vite(5173) + 프록시(8787) 동시 실행
 ## 로직 검증
 ```bash
 node test_freshness.mjs    # 신선도 손실
-node test_costimpact.mjs   # 비용 임팩트
+node test_costimpact.mjs   # 비용 임팩트(정적 모델)
+node test_bridge.mjs       # 입고 전 공백 시간축 검증(긴급 이관)
+node test_earlywarn.mjs    # 조기경보 재현 실험(시드 고정)
+node test_liveadapter.mjs  # 기상청·UNI-PASS 어댑터(실제 응답 형태 회귀 포함)
 ```
 
 ---

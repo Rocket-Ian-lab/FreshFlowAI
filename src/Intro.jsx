@@ -120,7 +120,7 @@ function IntegrationGraphic() {
   const sources = [
     { y: 26, label: "항만 Port-MIS" },
     { y: 62, label: "통관 UNI-PASS" },
-    { y: 98, label: "검역 KATI" },
+    { y: 98, label: "검역 식약처" },
     { y: 134, label: "FC WMS" },
   ];
   return (
@@ -198,7 +198,7 @@ export default function Intro({ onLaunch }) {
           <Reveal delay={160}>
             <Lead style={{ fontSize: "1.4rem", maxWidth: 740, color: "#4E5968" }}>
               수입식품 유통사 SCM 담당자에게 — <span style={{ color: T.ink, fontWeight: 600 }}>입항부터 FC 입고까지의 시점 예측과 센터 간 재고 밸런싱</span>을,
-              흩어진 데이터(Port-MIS·UNI-PASS·KATI)를 AI가 모아 분석합니다. 당신은 대시보드를 보고 판단만 하면 됩니다.
+              흩어진 데이터(Port-MIS·UNI-PASS·식약처)를 AI가 모아 분석합니다. 당신은 대시보드를 보고 판단만 하면 됩니다.
             </Lead>
           </Reveal>
           <Reveal delay={240}>
@@ -284,7 +284,7 @@ export default function Intro({ onLaunch }) {
         <Reveal delay={60}><H2>모은다 → 알아챈다 → 먼저 움직인다</H2></Reveal>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 18, marginTop: 8 }}>
           {[
-            { n: "01", icon: "collect", t: "모은다", c: T.blue, d: "Port-MIS·UNI-PASS·KATI와 센터별 재고를 한곳에 모아, Port-to-FC 리드타임 5구간 중 ‘어디서 새는가’를 한눈에 보여줍니다." },
+            { n: "01", icon: "collect", t: "모은다", c: T.blue, d: "Port-MIS·UNI-PASS·식약처 검사 정보와 센터별 재고를 한곳에 모아, Port-to-FC 리드타임 5구간 중 ‘어디서 새는가’를 한눈에 보여줍니다." },
             { n: "02", icon: "detect", t: "알아챈다", c: T.green, d: "AI가 흩어진 자료를 직접 분석해 입고 시점과 결품 위험을 도출하고, 평소 패턴 이탈을 결품 전에 경보합니다. 새벽에 연락받지 않아도 됩니다." },
             { n: "03", icon: "act", t: "먼저 움직인다", c: T.accent, d: "센터 간 재고 밸런싱·선제배치·이관까지 계산해 제시합니다. 당신은 대시보드를 보고 ‘실행’만 누르면 됩니다." },
           ].map((s, i) => (
@@ -343,10 +343,10 @@ export default function Intro({ onLaunch }) {
         <Reveal delay={60}><H2>추측이 아니라, 검증했다</H2></Reveal>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 18, margin: "8px 0 28px" }}>
           {[
-            { node: <CountUp value={7.4} decimals={1} suffix="h" />, l: "결품 전 평균 선행 (조기경보)" },
-            { node: "2 → 0", l: "위기 시 결품 위험 FC (개)" },
-            { node: <CountUp value={1.5} decimals={1} suffix="%" />, l: "조기경보 오작동률" },
-            { node: <CountUp value={90} suffix="%" />, l: "위기·체리 1건 비용 순절감" },
+            { node: <CountUp value={7.4} decimals={1} suffix="h" />, l: "임계 도달 전 평균 선행 (조기경보 시뮬레이션)" },
+            { node: "2 → 0", l: "위기 시 결품 위험 FC (재고 커버리지 기준)" },
+            { node: "0 / 200", l: "정상 상황 오경보 (시뮬레이션)" },
+            { node: "79~88%", l: "위기·체리 1건 예상손실 감소 (비용모델)" },
           ].map((s, i) => (
             <Reveal key={i} delay={i * 90}>
               <div style={{ fontFamily: T.heading, fontWeight: 700, fontSize: "clamp(2.6rem,4vw,3.3rem)", color: T.ink, lineHeight: 1, letterSpacing: -1.5 }}>{s.node}</div>
@@ -356,8 +356,8 @@ export default function Intro({ onLaunch }) {
         </div>
         <Reveal delay={360}>
           <Lead style={{ marginBottom: 0, fontSize: "1.05rem", color: T.dim }}>
-리스크가 점진적으로 악화되는 시나리오를 200회 반복 시뮬레이션해 조기경보가 결품 발생 전에 울리는지(평균 7.4시간 선행, 오경보 1.5%) 검증했고,
-            위기 상황의 선제배치 전·후(BEFORE/AFTER)로 결품 위험 FC가 2개에서 0개로 해소되는 것을 확인했습니다.
+리스크가 점진적으로 악화되는 시나리오를 200회 반복 시뮬레이션해 조기경보가 임계 도달 전에 울리는지(200회 전건, 평균 7.4시간 선행, 정상 상황 오경보 0회) 확인했습니다.
+            신규 선적이 도착하기 전의 공백은 센터 간 긴급 이관으로 메우며, 이를 시간축으로 검증하면 위기 1건의 예상손실이 79~88% 줄어듭니다. 모두 시뮬레이션과 가정 기반 비용모델의 결과이며, 실제 효과는 고객 데이터 파일럿에서 확인합니다.
           </Lead>
         </Reveal>
       </Section>
