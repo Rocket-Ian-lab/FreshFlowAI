@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
+import { planBridge } from "../lib/bridge.js"; // 입고 전 공백(브리지) 시간축 검증기 — 엔진 불변, 추천의 실행 가능성만 별도 검증
 
 /* ============================================================
    FreshFlow AI — 콜드체인 Port-to-FC 관제탑
@@ -352,9 +353,36 @@ export default function FreshFlowAI() {
     [ltDays, risk.wx, selectedBl]
   );
 
+  // 입고 전 공백(브리지) 시간축 검증 — 엔진(recommend)은 신규 선적을 '즉시' 재고에 더해 정적 커버리지를 본다.
+  // 실제로는 리드타임 뒤에 도착하므로, 그 전에 소진되는 FC는 과재고 FC의 재고를 먼저 이관해야 한다(lib/bridge.js, test_bridge.mjs).
+  // safe = 보내는 FC의 안전재고 유지 / full = 전량 메우는 데 필요한 만큼만 안전재고를 낮춤. 선택은 담당자의 몫.
+  const [bridgeMode, setBridgeMode] = useState("safe");
+  const inbound = useMemo(
+    () => Object.fromEntries(rec.after.map((f, i) => [f.id, f.stock - FC_INIT[i].stock]).filter(([, q]) => q > 0)),
+    [rec]
+  );
+  const bridgeSafe = useMemo(() => planBridge(FC_INIT, lt.total, { inbound }), [lt.total, inbound]);
+  const bridgeFull = useMemo(() => planBridge(FC_INIT, lt.total, { inbound, keepSafetyDays: "min" }), [lt.total, inbound]);
+  const bridge = bridgeMode === "full" ? bridgeFull : bridgeSafe;
+
   // Phase 2-E: 현재 엔진 상태에서 선제 조치(Action Item) 생성 — 경보를 '실행 가능한 버튼'으로
   const actionItems = useMemo(() => {
     const items = [];
+    if (bridge.totals.bridged > 0) {
+      const lines = [];
+      bridge.receivers.forEach((r) => {
+        r.sources.forEach((s) => lines.push(`${s.from} → ${r.name}: ${s.qty.toLocaleString()}개 긴급 이관`));
+        if (r.waves.length > 1) lines.push(`${r.name} 분할 입고(수용량 ${FC_INIT.find((f) => f.id === r.id).capacity.toLocaleString()}개): ${r.waves.map((w) => `${w.at}h ${w.qty.toLocaleString()}개`).join(" → ")}`);
+      });
+      items.push({
+        id: `bridge-${bridgeMode}`, icon: "⏱", urgency: "high",
+        title: `긴급 이관(브리지) — 신규 선적 도착 전 공백 메우기`,
+        basis: `신규 선적은 ${lt.total.toFixed(1)}h 뒤 도착 · 그 전에 소진: ${bridge.receivers.map((r) => `${r.name} ${r.stockoutAt}h`).join(", ")}`,
+        lines,
+        effect: `도착 전 품절 ${bridge.totals.need.toLocaleString()}개 → ${bridge.totals.residual.toLocaleString()}개`,
+        cta: `브리지 이관 ${bridge.totals.bridged.toLocaleString()}개 실행`,
+      });
+    }
     if (bHigh.length && rec.actions.length) {
       items.push({
         id: "preposition", icon: "📦", urgency: "high",
@@ -386,13 +414,18 @@ export default function FreshFlowAI() {
       });
     }
     return items;
-  }, [bHigh, aHigh, rec, risk.dock, ltDays, vol]);
+  }, [bHigh, aHigh, rec, risk.dock, ltDays, vol, bridge, bridgeMode, lt.total]);
 
   // 비용 임팩트 — 선제조치 전(현재재고) vs 후(신규배치+이관)의 결품·폐기·운송 비용
   const price = selectedBl?.price ?? COST.defaultPrice;
   const cost = useMemo(() => computeCostImpact(before, rec.after, ltDays, vol, price), [before, rec.after, ltDays, vol, price]);
   const costBefore = cost.before, costAfter = cost.after, costSaved = cost.saved;
   const savedPct = costBefore.total > 0 ? Math.round((costSaved / costBefore.total) * 100) : 0;
+  // 시간축 검증 반영 비용 — 정적 비용모델(위)은 결품 0을 가정한다. 여기서는 신규 선적 도착 전의 잔여 결품과
+  // 실제 브리지 이관량을 반영한다(단가는 COST 그대로). 엔진 값은 바꾸지 않고 옆에 나란히 보여준다.
+  const timeAfterTotal = bridge.totals.residual * price * COST.lostMargin + costAfter.spoilCost
+    + costAfter.placedUnits * COST.inbound + Math.max(costAfter.movedUnits, bridge.totals.bridged) * COST.transfer;
+  const timeSavedPct = costBefore.total > 0 ? Math.round((1 - timeAfterTotal / costBefore.total) * 1000) / 10 : 0;
 
   // 액션 실행(데모): 로그에 기록하고, 선제배치는 ③ 뷰를 AFTER로 전환해 효과를 즉시 시각화
   const runAction = (item) => {
@@ -559,7 +592,9 @@ ${fcLines}
 ${actLines}
 조치 후 결품위험 High: ${bHigh.length}개 → ${aHigh.length}개
 
-[비용 임팩트] FreshFlow 적용 전 손실 ${fmtWon(costBefore.total)} → 적용 후 ${fmtWon(costAfter.total)} (절감 ${fmtWon(costSaved)}, ${savedPct}%)
+[입고 전 공백 검증] 신규 선적은 ${lt.total.toFixed(1)}시간 뒤 도착. 그 전에 소진되는 FC: ${bridge.receivers.length ? bridge.receivers.map((r) => `${r.name} ${r.stockoutAt}시간 뒤`).join(", ") : "없음"}. 긴급 이관(브리지) ${bridge.totals.bridged.toLocaleString()}개로 도착 전 품절 ${bridge.totals.need.toLocaleString()}개 → ${bridge.totals.residual.toLocaleString()}개
+
+[비용 임팩트] FreshFlow 적용 전 손실 ${fmtWon(costBefore.total)} → 적용 후 ${fmtWon(costAfter.total)} (정적 비용모델 절감 ${fmtWon(costSaved)}, ${savedPct}%) · 시간축 검증 반영 시 적용 후 ${fmtWon(timeAfterTotal)} (${timeSavedPct}% 감소)
 
 위 데이터로 아래 세 항목을 작성하세요. 반드시 각 항목을 지정된 머리말과 세로줄(|)로 시작하고, 한 항목은 한 줄(줄바꿈 없이)로 쓰세요:
 진단| 가장 위급한 상황과 그 원인이 어느 리드타임 구간에서 비롯됐는지 1~2문장.
@@ -1095,6 +1130,74 @@ ${actLines}
         <Header label="⑤ 선제 조치 · Prescriptive — 보고 바로 누른다">
           {actionLog.length > 0 && <span style={{ fontSize: 11, color: C.green, fontWeight: 600 }}>✓ {actionLog.length}건 실행됨</span>}
         </Header>
+
+        {/* 입고 전 공백 검증(시간축) — 신규 선적이 도착하기 전에 바닥나는 FC와, 이를 메우는 긴급 이관(브리지) 계획 */}
+        {bridge.totals.need > 0 && (
+          <div style={{ background: C.panel2, border: `1px solid ${C.grid}`, borderRadius: 10, padding: "13px 15px", marginBottom: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+              <span style={{ fontSize: 13, fontWeight: 700 }}>
+                ⏱ 입고 전 공백 검증
+                <span style={{ fontWeight: 500, color: C.dim, fontSize: 11 }}> · 신규 선적은 {lt.total.toFixed(1)}h 뒤 도착 — 그 전에 재고가 바닥나는 FC</span>
+              </span>
+              {bridgeSafe.totals.residual > 0 && (
+                <Toggle options={[["safe", "안전재고 유지", C.blue], ["full", "전량 메움", C.amber]]} value={bridgeMode} onChange={setBridgeMode} />
+              )}
+            </div>
+
+            {/* FC별 타임라인: 현재 재고로 버티는 시간 → 브리지로 메우는 시간 → 남는 공백 */}
+            {bridge.receivers.map((r) => {
+              const fc = FC_INIT.find((f) => f.id === r.id);
+              const own = Math.min(r.stockoutAt, lt.total);
+              const br = Math.min(lt.total - own, r.covered / (fc.demand / 24));
+              const gap = Math.max(0, lt.total - own - br);
+              const pct = (v) => `${(v / lt.total) * 100}%`;
+              return (
+                <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 7 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, width: 58, flexShrink: 0 }}>{r.name}</span>
+                  <div style={{ flex: 1, height: 18, display: "flex", borderRadius: 4, overflow: "hidden", border: `1px solid ${C.grid}`, background: C.panel }}>
+                    <div title="현재 재고로 버팀" style={{ width: pct(own), background: `${C.green}55` }} />
+                    <div title="브리지 이관으로 메움" style={{ width: pct(br), background: C.blue }} />
+                    <div title="공백(품절)" style={{ width: pct(gap), background: C.red }} />
+                  </div>
+                  <span style={{ fontSize: 11, color: C.dim, width: 232, flexShrink: 0, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>
+                    <span style={{ color: C.red, fontWeight: 600 }}>{r.stockoutAt}h 뒤 소진</span> · 부족 {r.need.toLocaleString()} → {r.residual.toLocaleString()}
+                  </span>
+                </div>
+              );
+            })}
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 10, color: C.dim, margin: "2px 0 9px 68px" }}>
+              <Legend dot={`${C.green}99`} text="현재 재고로 버팀" />
+              <Legend dot={C.blue} text="브리지 이관으로 메움" />
+              <Legend dot={C.red} text="공백(품절)" />
+              <span>· 막대 전체 = 신규 선적 도착까지 {lt.total.toFixed(1)}h</span>
+            </div>
+
+            <div style={{ fontSize: 12, lineHeight: 1.6 }}>
+              <div>
+                <span style={{ fontWeight: 700 }}>도착 전 품절 {bridge.totals.need.toLocaleString()}개 → </span>
+                <span style={{ fontWeight: 800, color: bridge.totals.residual > 0 ? C.amber : C.green }}>{bridge.totals.residual.toLocaleString()}개</span>
+                <span style={{ color: C.dim }}> · 브리지 이관 {bridge.totals.bridged.toLocaleString()}개</span>
+              </div>
+              {bridge.donors.length > 0 && (
+                <div style={{ fontSize: 11, color: C.dim }}>
+                  보내는 곳 — {bridge.donors.map((d) => `${d.name} ${d.given.toLocaleString()}개(도착 시 안전재고 ${d.safetyAfterDays.toFixed(1)}일)`).join(" · ")}
+                </div>
+              )}
+              {bridgeMode === "safe" && bridgeSafe.totals.residual > 0 && (
+                <div style={{ fontSize: 11, color: C.amber }}>
+                  안전재고를 유지하면 {bridgeSafe.totals.residual.toLocaleString()}개가 남습니다. '전량 메움'을 고르면 보내는 FC의 안전재고를 낮춰 {bridgeFull.totals.residual.toLocaleString()}개까지 줄일 수 있습니다 — 이 선택은 담당자가 합니다.
+                </div>
+              )}
+              {bridge.receivers.filter((r) => r.lateHours > 0).map((r) => (
+                <div key={r.id} style={{ fontSize: 11, color: C.red }}>⚠ {r.name}: 이관({bridge.transferHours}h)보다 소진이 먼저라 {r.lateHours}h 공백은 막을 수 없습니다.</div>
+              ))}
+            </div>
+            <div style={{ marginTop: 8, fontSize: 10, color: C.dim }}>
+              시간축 시뮬레이션 검산 — 품절 {bridge.check.shortage.toLocaleString()}개 · 수용량 초과 {bridge.check.capacityOk ? "없음" : "있음"}. 가정: FC 간 이관 {bridge.transferHours}시간 · 수요 시간당 균등. 선제배치(정적 재고 커버리지)와 별도로 실행 가능성을 검증합니다.
+            </div>
+          </div>
+        )}
+
         {actionItems.length === 0 ? (
           <div style={{ fontSize: 12, color: C.dim, marginTop: 4 }}>
             현재 권장 조치 없음 — 위험 BL을 조회하거나 리스크를 올리면 AI가 선제 조치를 제안합니다.
@@ -1189,8 +1292,21 @@ ${actLines}
           <span style={{ fontSize: 14, fontWeight: 700, color: C.amber, fontFamily: "'IBM Plex Mono', monospace" }}>{fmtWon(costAfter.transportCost)}</span>
         </div>
 
+        {/* 시간축 검증 반영 — 정적 비용모델은 결품 0을 가정하므로, 신규 선적 도착 전 잔여 결품과 실제 브리지 이관량을 반영한 값을 나란히 표기 */}
+        {bridge.totals.need > 0 && (
+          <div style={{ marginTop: 12, padding: "11px 13px", background: C.panel2, border: `1px solid ${C.grid}`, borderRadius: 10, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+            <span style={{ fontSize: 12 }}>
+              <span style={{ fontWeight: 700 }}>⏱ 시간축 검증 반영</span>
+              <span style={{ color: C.dim, fontSize: 11 }}> (도착 전 잔여 결품 {bridge.totals.residual.toLocaleString()}개 · 브리지 이관 {bridge.totals.bridged.toLocaleString()}개 · {bridgeMode === "full" ? "전량 메움" : "안전재고 유지"})</span>
+            </span>
+            <span style={{ fontSize: 13, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace" }}>
+              적용 후 {fmtWon(timeAfterTotal)} <span style={{ color: C.green }}>({timeSavedPct}%↓)</span>
+            </span>
+          </div>
+        )}
+
         <div style={{ marginTop: 12, fontSize: 10, color: C.dim }}>
-          가정 — 결품 예상손실 = 부족분 × 단가 × 마진율 {Math.round(COST.lostMargin * 100)}% · 재고폐기 예상손실(선제조치 안 할 경우) = 목표초과 잉여 × 단가 × 폐기율 {Math.round(COST.spoilRate * 100)}% · 운송비 = 배치 {fmtWon(COST.inbound)}/개 + 이관 {fmtWon(COST.transfer)}/개. 이 화물 1건 기준 · 실데이터 연동 시 정밀화.
+          가정 — 결품 예상손실 = 부족분 × 단가 × 마진율 {Math.round(COST.lostMargin * 100)}% · 재고폐기 예상손실(선제조치 안 할 경우) = 목표초과 잉여 × 단가 × 폐기율 {Math.round(COST.spoilRate * 100)}% · 운송비 = 배치 {fmtWon(COST.inbound)}/개 + 이관 {fmtWon(COST.transfer)}/개. 이 화물 1건 기준 · 실데이터 연동 시 정밀화. 위 큰 숫자는 결품 0을 가정한 정적 비용모델이며, 시간축 검증 값은 신규 선적 도착 전 공백을 반영합니다. 모두 가정 기반 추정이고 실측이 아닙니다.
         </div>
       </Section>
     </div>

@@ -249,9 +249,11 @@ fetch("https://api.anthropic.com/v1/messages", {
 | 기상(wx) | 기상청 **초단기실황**(`getUltraSrtNcst`, 인천 격자 nx55/ny124) + **기상특보**(`getWthrWrnList`, stnId 109) — 공공데이터포털 | ✅ **연동 완료** (`DATA_GO_KR_KEY`) | 강수·풍속·기온·눈·특보 → `weatherToWx()` 0~1 |
 | 통관(cust) | 관세청 **UNI-PASS** 화물통관진행정보(`cargCsclPrgsInfoQry`, MBL→HBL 재시도) | ✅ **연동 완료** (`UNIPASS_KEY`) | 진행단계 XML → `parseUnipass()` → stage + cust |
 | 항만(cong) | 해수부 **Port-MIS** 선박입항·관제정보 + AIS | ⏳ 미연동(`unavailable`) | 데이터셋 키/엔드포인트 확정 후 `getLive()`에 추가 |
-| 통관리스크 | aT **KATI** 농식품 통관문제 사례 API | ⏳ 미연동 | 검역 불합격 사유·발생연월 → cust 보정에 활용 예정 |
+| 통관리스크 | ~~aT KATI~~ → 식약처 **수입식품정보마루**(부적합·검사명령) + UNI-PASS **검사검역**·통관단일창구 처리이력 API | ⏳ 미연동 | ⚠ **KATI는 수출 방향**(K-푸드 해외 통관거부 사례)이라 수입 검역 소스가 아님(2026-11 검증). 법정 검사 처리기간(서류 2·현장 3·무작위표본 5·정밀 10일)을 확률형 ETA 상한으로 사용. 문서·화면의 "KATI" 표기 정정은 사용자 결정 대기 |
 | FC입고(dock) | 자사 **WMS** Dock | ⏳ 자사 시스템 | 완전 실시간 가능 |
 | 내륙운송 | 운송사 **TMS**/GPS | Phase 2 | 표준화 미비, MVP는 추정 |
+
+> ⚠ **"연동 완료"의 정확한 의미(2026-11 확인)**: 어댑터 구현과 응답 검증까지다. 기상청은 명세 기반 샘플, UNI-PASS는 실제 응답 8건으로 검증했다. **인증키를 넣은 실호출은 아직 한 번도 확인하지 않았다**(로컬 `.env`와 배포 서버 모두 키 미설정, `/api/live`가 `nokey` 반환). 공개물에는 "어댑터 구현·응답 검증"으로 표기하고 "실제 API가 흐른다"고 쓰지 않는다.
 
 **어댑터 구조(구현됨)**: `lib/live.js`의 `getLive(env,{bl})`가 소스별로 **독립 실행**해 `{ risks{cong,cust,wx,dock}, stage, sources{status: live|nokey|error|notfound|unavailable, detail} }`를 반환. 프론트(①의 "🛰 실시간 데이터")는 **`status==='live'`인 항목만** 슬라이더에 반영하고 나머지는 시뮬레이션/수동 값을 유지, 소스별 상태를 배지로 정직 표기. 엔드포인트는 로컬 `server.js`·배포 `api/live.js`가 동일 모듈을 사용(키는 서버측 env). 순수 정규화는 `test_liveadapter.mjs`로 검증. **엔진 인터페이스는 그대로, 데이터 소스만 교체**하는 구조 유지.
 
@@ -311,8 +313,24 @@ fetch("https://api.anthropic.com/v1/messages", {
 - **엔드포인트**: `GET /api/live?bl=` — 로컬 `server.js`, 배포 `api/live.js`(Vercel). `/api/health`에 `live.dataGoKr/unipass` 키 보유 여부.
 - **UI**: ① 선적 리스크 상단 "🛰 실시간 데이터" 패널 — 버튼 → 소스별 카드(실시간/키 미설정/BL 없음/오류/미연동 + 근거 detail) → `live`만 `animateRiskTo`로 슬라이더 반영, 시나리오/BL 변경 시 초기화.
 - **키**: `DATA_GO_KR_KEY`(공공데이터포털: 기상청 단기예보·기상특보 활용신청, 인코딩/디코딩키 모두 OK), `UNIPASS_KEY`(관세청 UNI-PASS Open API 인증키). 로컬 `.env`, 배포 Vercel 환경변수.
-- **검증**(`test_liveadapter.mjs`, 12건): 평온 wx .05 / 폭우+강풍 .75 / +태풍·강풍 특보 1.0 / 폭염+특보 .45, 단조성; UNI-PASS 인증키 오류→error, tCnt=0→notfound, 검사대상→customs·.6, 수리→release·.15, 입항→port; base 시각 포맷. 로컬 스모크: 키 없이 `/api/live` → `nokey/unavailable` 응답, 서버 무중단.
+- **검증**(`test_liveadapter.mjs`, 20건): 평온 wx .05 / 폭우+강풍 .75 / +태풍·강풍 특보 1.0 / 폭염+특보 .45, 단조성; UNI-PASS 인증키 오류→error, tCnt=0→notfound, 검사대상→customs·.6, 수리→release·.15, 입항→port; base 시각 포맷. 로컬 스모크: 키 없이 `/api/live` → `nokey/unavailable` 응답, 서버 무중단.
+- **실제 응답 검증(2026-11)**: 오픈소스 node-unipass의 실제 UNI-PASS 응답 8건으로 파서를 검증·수정. 이력은 **최신순(역순)**으로 오므로 `unipassEvents(xml)`가 처리일시(`prcsDttm`)로 정렬, '입항적하목록 운항정보 정정'(일상 이벤트)은 리스크에서 제외, 단계는 마일스톤(입항·반입·수리·반출) 유무로 판정(수리+반출→`inland`·.1), MBL 다건(`[N00]`)은 재조회 안내. `unipassTimeline(xml)`이 **구간별 실측 소요시간(h)**과 지연 신호(반입기간연장·검사·입항 전 신고)를 반환 → 리드타임 예측의 학습 레이블. 상세·ML 타당성: `FreshFlow_실데이터_타당성검토.md`.
 - **정직성**: 소스별 status를 화면에 그대로 노출. 항만(Port-MIS)·FC Dock·KATI는 `unavailable`로 표기(데이터셋 확정/자사 시스템 필요) — "다 된다"고 표시하지 않음. wx 매핑은 명시적 휴리스틱.
+
+### 입고 전 공백(브리지) 시간축 검증 (✅ 구현 · 대시보드 통합 완료) — 2026-11 외부 리뷰 반영
+> 엔진의 한계를 보완하는 별도 검증기. **엔진 함수·섹션 9 회귀값은 그대로**다.
+- **문제**: `recommend()`는 신규 선적을 '즉시' 재고에 더해 정적 커버리지를 본다. 그러나 위기 시 신규 선적은 61.8h 뒤 도착하고 용인은 14.0h·인천은 33.6h 뒤 소진된다. 신규 선적만으로는 그 사이 품절을 막을 수 없다. 또한 선제배치 후 인천·용인 등급은 **Low가 아니라 Medium**이다(`assess()` 기준, High 2→0은 맞음).
+- **모듈**: `lib/bridge.js` — `planBridge(fcs, ltHours, {inbound, transferHours=6, keepSafetyDays})`가 과재고 FC의 잉여를 먼저 이관하는 계획(소진 임박 순 배정, 수용량을 넘지 않는 분할 입고, 이관이 소진보다 늦으면 `feasible=false`)을 만들고, `simulate()`가 6분 간격 시간축 재고로 품절 수량·수용량 초과를 독립 검산한다.
+- **검증값**(`test_bridge.mjs`, 위기·체리): 브리지 없으면 도착 전 품절 **3,567개**. 안전재고 1.5일 유지 시 브리지 2,663개 → 잔여 **904개**. 안전재고를 약 1.0일로 낮추면 3,567개 전량 이관 → **0개**(용인은 수용량 2,500 때문에 2회 분할). 이 선택은 담당자의 몫.
+- **비용에 미치는 영향**: 정적 비용모델(`computeCostImpact`)의 90%는 이관 2,663개로 결품 0을 가정한 값이다. 시간축을 반영하면 **78.8%(안전재고 유지) ~ 87.9%(안전재고 일부 사용)**. 공개물에는 "비용모델 79~90%"로 표기한다.
+- **정밀값 주의**: 소스 기준 정밀 계산은 결품 3,567 · 잉여 2,663 · 적용 후 ₩286만이다. 섹션 9의 3,565 · 2,665 · ₩287만은 리드타임을 61.8h로 반올림한 `test_costimpact.mjs` 기준 값이며 대시보드 표시값은 ₩286만이다.
+- **UI(통합됨)**: `FreshFlowAI.jsx`가 `planBridge`를 불러와 `bridgeSafe`/`bridgeFull`을 계산(상태 `bridgeMode`). ⑤ 선제 조치 상단 "⏱ 입고 전 공백 검증" 패널 — FC별 타임라인 막대(현재 재고로 버팀 → 브리지로 메움 → 공백), '안전재고 유지/전량 메움' 토글, 보내는 FC의 도착 시 안전재고, 시뮬레이션 검산. 조치 카드 맨 앞에 "긴급 이관(브리지)" 추가(이관 내역·분할 입고·모의 실행). ⑥ 비용 임팩트에 "시간축 검증 반영" 행(정적 모델 KPI는 그대로). AI Copilot 프롬프트에도 주입.
+- **남은 것**: ④ 패널의 "전량 해소" 문구와 홍보 영상·소개자료의 "90%"·"2→0" 단정 표현은 정적 모델 기준 그대로다(표기 통일 여부는 사용자 결정 대기). 시간축 재고는 품목 단일·수요 균등 가정이며 SKU·로트 단위 확장은 후속 과제.
+
+### 조기경보 재현 실험 복원 (✅) — 2026-11
+- `test_earlywarn.mjs`(시드 고정, 엔진은 `test_helpers.mjs`의 `loadEngine()`으로 소스에서 직접 로드). 점진 악화 200회: 임계 도달 전 경보 **200/200**, 실제 선행시간(임계 도달시각−경보시각) **평균 7.4h**(최소 1.0h, 최대 10.5h). 정상 지속 200회: 오경보 **0회**.
+- 기존 문서의 "오경보율 1.5%"는 원 스크립트가 없어 **재현되지 않았다**. 공개물에는 "정상 상황 오경보 0/200"으로 표기한다.
+- **확인된 한계**: 임계의 약 91%까지 일시 급등 후 회복하는 시나리오에서는 200/200 경보가 울린다(급등·회복 구분 못 함). 합성 시계열이며 임계는 '커버리지 2.5일인 가상 관찰 FC' 기준이다.
 
 ### Phase 2-D: ETA 고도화 (미구현 — 데이터 필요)
 > 외부 평가 조언(2번) 반영. **정직성 원칙**상 분포 데이터 없이 확률 ETA를 단정하지 않음 — 데이터 확보 후 단계 격상.
@@ -370,7 +388,13 @@ AI 해커톤/                     # Vite + React 프로젝트 루트
 ├── server.js                 # Express: Claude 프록시(/api/messages) + 실데이터(/api/live) + health
 ├── api/messages.js · api/live.js   # Vercel 서버리스(배포용) — server.js와 동일 역할
 ├── lib/live.js               # 실데이터 어댑터(기상청·UNI-PASS 정규화 + fetch) — 로컬/배포 공용
-├── test_liveadapter.mjs      # 어댑터 순수 함수 검증(12건)
+├── test_liveadapter.mjs      # 어댑터 순수 함수 검증(20건, 실제 UNI-PASS 응답 형태 회귀 포함)
+├── FreshFlow_실데이터_타당성검토.md  # UNI-PASS 실샘플 분석 · KATI 정정 · 출고시간 예측/ML 타당성
+├── FreshFlow_사업성검토.md · FreshFlow_리뷰반영.md  # 사업 모델 제안 · 외부 리뷰 검증·반영 기록
+├── lib/bridge.js             # 입고 전 공백(브리지) 시간축 검증기 — 엔진 불변, 추천의 실행 가능성 검증
+├── test_helpers.mjs          # loadEngine(): 엔진을 소스에서 직접 로드(문서·테스트와 제품 코드의 불일치 방지)
+├── test_bridge.mjs · test_earlywarn.mjs  # 시간축 브리지 검증 · 조기경보 재현 실험(시드 고정)
+├── tools/build_ppt.cjs       # 발표 PPT 생성기(FreshFlow_홍보PPT.pptx, pptxgenjs 필요)
 ├── src/
 │   ├── main.jsx              # createRoot로 <App/> 렌더
 │   ├── App.jsx               # 상단 내비 + 뷰 전환(대시보드/소개자료)
