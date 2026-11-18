@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { planBridge } from "../lib/bridge.js"; // 입고 전 공백(브리지) 시간축 검증기 — 엔진 불변, 추천의 실행 가능성만 별도 검증
+import { useLang, trName, trAction, trRationale, withKoKeywords, SENSE_SAMPLES_EN, trHr, fmtBigWon } from "./i18n.js"; // 영한 전환 — 표시 계층 전용(엔진 불변)
 
 /* ============================================================
    FreshFlow AI — 콜드체인 Port-to-FC 관제탑
@@ -277,25 +278,31 @@ function keywordSense(text) {
 const senseColor = (v) => (v >= 0.5 ? C.red : v >= 0.3 ? C.amber : C.green);
 
 // AI 진단 텍스트를 라벨 섹션(진단|조치|실행)으로 파싱. 형식 미준수 시 null 반환 → 호출부에서 문장 폴백.
+// markerEn/titleEn = 영문 화면용(영문 프롬프트는 DIAGNOSIS|ACTION|NEXT 머리말을 쓴다).
 const AI_SECTIONS = [
-  { marker: "진단", title: "핵심 진단", color: C.red },
-  { marker: "조치", title: "권장 조치", color: C.blue },
-  { marker: "실행", title: "지금 할 일", color: C.green },
+  { marker: "진단", markerEn: "DIAGNOSIS", title: "핵심 진단", titleEn: "Key diagnosis", color: C.red },
+  { marker: "조치", markerEn: "ACTION", title: "권장 조치", titleEn: "Recommended action", color: C.blue },
+  { marker: "실행", markerEn: "NEXT", title: "지금 할 일", titleEn: "Do this now", color: C.green },
 ];
 function parseAiSections(text) {
   const out = [];
   for (const raw of text.split("\n")) {
     const t = raw.trim();
     if (!t) continue;
-    const m = AI_SECTIONS.find((x) => new RegExp(`^${x.marker}\\s*[|：:]`).test(t));
+    const m = AI_SECTIONS.find((x) => new RegExp(`^(?:${x.marker}|${x.markerEn})\\s*[|：:]`, "i").test(t));
     if (!m) continue;
-    const body = t.replace(new RegExp(`^${m.marker}\\s*[|：:]\\s*`), "").trim();
-    if (body) out.push({ title: m.title, color: m.color, body });
+    const body = t.replace(new RegExp(`^(?:${m.marker}|${m.markerEn})\\s*[|：:]\\s*`, "i"), "").trim();
+    if (body) out.push({ title: m.title, titleEn: m.titleEn, color: m.color, body });
   }
   return out.length ? out : null;
 }
 
 export default function FreshFlowAI() {
+  // 영한 전환 — L(한국어, 영문), nm(엔진이 만든 이름), pcs(수량+단위). 엔진 계산에는 관여하지 않는다.
+  const { lang, en, L } = useLang();
+  const nm = (s) => trName(lang, s);
+  const pcs = (n) => (en ? `${n.toLocaleString()} units` : `${n.toLocaleString()}개`);
+
   const [risk, setRisk] = useState({ cong: 0.2, cust: 0.2, wx: 0.1, dock: 0.2 });
   const [vol, setVol] = useState(4000);
   const [mode, setMode] = useState("before");
@@ -309,7 +316,7 @@ export default function FreshFlowAI() {
   const [actionLog, setActionLog] = useState([]);
 
   // AI 리스크 센싱 — 텍스트 → LLM → 리스크 JSON → 슬라이더 자동 조정
-  const [senseText, setSenseText] = useState(SENSE_SAMPLES.crisis);
+  const [senseText, setSenseText] = useState(en ? SENSE_SAMPLES_EN.crisis : SENSE_SAMPLES.crisis);
   const [sensing, setSensing] = useState(false);
   const [senseResult, setSenseResult] = useState(null);
   const [senseError, setSenseError] = useState("");
@@ -371,35 +378,52 @@ export default function FreshFlowAI() {
     if (bridge.totals.bridged > 0) {
       const lines = [];
       bridge.receivers.forEach((r) => {
-        r.sources.forEach((s) => lines.push(`${s.from} → ${r.name}: ${s.qty.toLocaleString()}개 긴급 이관`));
-        if (r.waves.length > 1) lines.push(`${r.name} 분할 입고(수용량 ${FC_INIT.find((f) => f.id === r.id).capacity.toLocaleString()}개): ${r.waves.map((w) => `${w.at}h ${w.qty.toLocaleString()}개`).join(" → ")}`);
+        r.sources.forEach((s) => lines.push(en
+          ? `${nm(s.from)} → ${nm(r.name)}: ${pcs(s.qty)} emergency transfer`
+          : `${s.from} → ${r.name}: ${s.qty.toLocaleString()}개 긴급 이관`));
+        if (r.waves.length > 1) {
+          const cap = FC_INIT.find((f) => f.id === r.id).capacity;
+          lines.push(en
+            ? `${nm(r.name)} split receiving (capacity ${pcs(cap)}): ${r.waves.map((w) => `${w.at}h ${pcs(w.qty)}`).join(" → ")}`
+            : `${r.name} 분할 입고(수용량 ${cap.toLocaleString()}개): ${r.waves.map((w) => `${w.at}h ${w.qty.toLocaleString()}개`).join(" → ")}`);
+        }
       });
       items.push({
         id: `bridge-${bridgeMode}`, icon: "⏱", urgency: "high",
-        title: `긴급 이관(브리지) — 신규 선적 도착 전 공백 메우기`,
-        basis: `신규 선적은 ${lt.total.toFixed(1)}h 뒤 도착 · 그 전에 소진: ${bridge.receivers.map((r) => `${r.name} ${r.stockoutAt}h`).join(", ")}`,
+        title: L(`긴급 이관(브리지) — 신규 선적 도착 전 공백 메우기`, "Emergency transfer (bridge) — cover the gap before the new shipment arrives"),
+        basis: en
+          ? `New shipment arrives in ${lt.total.toFixed(1)}h · runs out earlier: ${bridge.receivers.map((r) => `${nm(r.name)} ${r.stockoutAt}h`).join(", ")}`
+          : `신규 선적은 ${lt.total.toFixed(1)}h 뒤 도착 · 그 전에 소진: ${bridge.receivers.map((r) => `${r.name} ${r.stockoutAt}h`).join(", ")}`,
         lines,
-        effect: `도착 전 품절 ${bridge.totals.need.toLocaleString()}개 → ${bridge.totals.residual.toLocaleString()}개`,
-        cta: `브리지 이관 ${bridge.totals.bridged.toLocaleString()}개 실행`,
+        effect: en
+          ? `Pre-arrival stockout ${pcs(bridge.totals.need)} → ${pcs(bridge.totals.residual)}`
+          : `도착 전 품절 ${bridge.totals.need.toLocaleString()}개 → ${bridge.totals.residual.toLocaleString()}개`,
+        cta: en ? `Run bridge transfer of ${pcs(bridge.totals.bridged)}` : `브리지 이관 ${bridge.totals.bridged.toLocaleString()}개 실행`,
       });
     }
     if (bHigh.length && rec.actions.length) {
       items.push({
         id: "preposition", icon: "📦", urgency: "high",
-        title: `선제배치 실행 — 신규 선적 ${vol.toLocaleString()}개 배분`,
-        basis: `결품 위험 ${bHigh.length}개 FC (${bHigh.map((f) => f.name).join("·")})`,
-        lines: rec.actions,
-        effect: `결품 High ${bHigh.length}개 → ${aHigh.length}개 (도착 후 재고 커버리지 기준)`,
-        cta: "배치 실행", apply: "after",
+        title: en ? `Run pre-positioning — allocate ${pcs(vol)} of the new shipment` : `선제배치 실행 — 신규 선적 ${vol.toLocaleString()}개 배분`,
+        basis: en
+          ? `${bHigh.length} FC(s) at stockout risk (${bHigh.map((f) => nm(f.name)).join(", ")})`
+          : `결품 위험 ${bHigh.length}개 FC (${bHigh.map((f) => f.name).join("·")})`,
+        lines: rec.actions.map((a) => trAction(lang, a)),
+        effect: en
+          ? `High-risk FCs ${bHigh.length} → ${aHigh.length} (by post-arrival stock coverage)`
+          : `결품 High ${bHigh.length}개 → ${aHigh.length}개 (도착 후 재고 커버리지 기준)`,
+        cta: L("배치 실행", "Run allocation"), apply: "after",
       });
     }
     if (risk.dock >= 0.4) {
       items.push({
         id: "dockslot", icon: "🚪", urgency: risk.dock >= 0.5 ? "high" : "med",
-        title: "FC 입고 슬롯 조정",
-        basis: `FC Dock 혼잡 ${Math.round(risk.dock * 100)}% — 야드 대기 증가 예상`,
-        effect: "피크 시간 회피로 입고 대기 단축",
-        cta: "슬롯 16시→18시 변경",
+        title: L("FC 입고 슬롯 조정", "Reschedule FC receiving slot"),
+        basis: en
+          ? `FC dock congestion ${Math.round(risk.dock * 100)}% — longer yard waiting expected`
+          : `FC Dock 혼잡 ${Math.round(risk.dock * 100)}% — 야드 대기 증가 예상`,
+        effect: L("피크 시간 회피로 입고 대기 단축", "Shorter dock wait by avoiding the peak window"),
+        cta: L("슬롯 16시→18시 변경", "Move slot 16:00 → 18:00"),
       });
     }
     if (aHigh.length) {
@@ -407,14 +431,18 @@ export default function FreshFlowAI() {
       const units = Math.max(100, Math.round(short / 50) * 50);
       items.push({
         id: "milkrun", icon: "🚚", urgency: "high",
-        title: "대체 공급처 긴급 수급 (밀크런)",
-        basis: `선제배치 후에도 결품 위험 ${aHigh.length}개 — ${aHigh.map((f) => f.name).join("·")}`,
-        effect: `국내 도매·타 항만 재고에서 약 ${units.toLocaleString()}개 긴급 수급`,
-        cta: `밀크런 ${units.toLocaleString()}개 요청`,
+        title: L("대체 공급처 긴급 수급 (밀크런)", "Emergency sourcing from alternative suppliers (milk run)"),
+        basis: en
+          ? `${aHigh.length} FC(s) still at stockout risk after pre-positioning — ${aHigh.map((f) => nm(f.name)).join(", ")}`
+          : `선제배치 후에도 결품 위험 ${aHigh.length}개 — ${aHigh.map((f) => f.name).join("·")}`,
+        effect: en
+          ? `Source about ${pcs(units)} from domestic wholesale and other ports' stock`
+          : `국내 도매·타 항만 재고에서 약 ${units.toLocaleString()}개 긴급 수급`,
+        cta: en ? `Request milk run of ${pcs(units)}` : `밀크런 ${units.toLocaleString()}개 요청`,
       });
     }
     return items;
-  }, [bHigh, aHigh, rec, risk.dock, ltDays, vol, bridge, bridgeMode, lt.total]);
+  }, [bHigh, aHigh, rec, risk.dock, ltDays, vol, bridge, bridgeMode, lt.total, lang]);
 
   // 비용 임팩트 — 선제조치 전(현재재고) vs 후(신규배치+이관)의 결품·폐기·운송 비용
   const price = selectedBl?.price ?? COST.defaultPrice;
@@ -501,12 +529,21 @@ export default function FreshFlowAI() {
     setTimeout(() => setRisk(final), dur + 90);
   };
 
+  // 언어를 바꾸면: 예시 텍스트를 그 언어로 교체하고, 이전 언어로 생성된 AI 결과·안내문은 지운다(슬라이더 값은 유지).
+  const langMounted = useRef(false);
+  useEffect(() => {
+    if (!langMounted.current) { langMounted.current = true; return; }
+    const from = en ? SENSE_SAMPLES : SENSE_SAMPLES_EN, to = en ? SENSE_SAMPLES_EN : SENSE_SAMPLES;
+    setSenseText((t) => (t === from.crisis ? to.crisis : t === from.peace ? to.peace : t));
+    setAiText(""); setAiError(""); setSenseResult(null); setSenseError(""); setLiveError(""); setBlError("");
+  }, [lang]);
+
   // AI 리스크 센싱: 텍스트를 Claude에 보내 리스크 JSON 도출 → 슬라이더 자동 조정. 실패 시 규칙기반 폴백.
   async function runRiskSensing() {
     setSensing(true); setSenseError("");
     const prompt = `당신은 수입 신선식품 콜드체인(인천항→수도권 FC)의 리스크 센서 AI입니다. 아래 뉴스/통관 공지/기상 특보 텍스트를 읽고 4개 리스크를 0~1로 평가하세요. 반드시 아래 JSON만 출력하고 다른 설명은 쓰지 마세요.
 {"cong":0~1(항만 혼잡),"cust":0~1(통관·검역),"wx":0~1(기상),"dock":0~1(FC dock 혼잡),"rationale":{"cong":"근거 한 문장","cust":"근거 한 문장","wx":"근거 한 문장","dock":"근거 한 문장"},"eta":{"p50":통관예상시간(시간,숫자),"p90":보수적예상(시간,숫자),"basis":"근거 한 문장"}}
-
+${en ? "\nWrite every rationale sentence and the eta basis in English.\n" : ""}
 [텍스트]
 ${senseText}`;
     try {
@@ -522,9 +559,9 @@ ${senseText}`;
       setSenseResult({ risks, rationale: json.rationale || {}, eta: json.eta || null, source: "AI (Claude) 분석" });
       animateRiskTo(risks);
     } catch (e) {
-      const fb = keywordSense(senseText);
+      const fb = keywordSense(withKoKeywords(senseText)); // 영문 텍스트도 규칙이 읽도록 키워드 보강(엔진 불변)
       setSenseResult(fb); animateRiskTo(fb.risks);
-      setSenseError("AI 호출 실패 — 규칙기반 폴백으로 센싱했습니다(데모 계속).");
+      setSenseError(L("AI 호출 실패 — 규칙기반 폴백으로 센싱했습니다(데모 계속).", "AI call failed — sensed with the rule-based fallback (demo continues)."));
     } finally {
       setSensing(false);
       setAiText(""); setAiError(""); setActionLog([]); setMode("before");
@@ -546,7 +583,7 @@ ${senseText}`;
       }
       if (applied) { animateRiskTo(next); setMode("before"); setActionLog([]); setSenseResult(null); setAiText(""); setAiError(""); }
     } catch (e) {
-      setLiveError("실시간 데이터를 가져오지 못했습니다 — 시뮬레이션 값을 유지합니다.");
+      setLiveError(L("실시간 데이터를 가져오지 못했습니다 — 시뮬레이션 값을 유지합니다.", "Could not fetch live data — simulated values are kept."));
     } finally { setLiveLoading(false); }
   }
 
@@ -571,7 +608,7 @@ ${senseText}`;
   const onBlSearch = () => {
     const b = lookupBl(blInput);
     if (b) applyBl(b);
-    else { setSelectedBl(null); setBlError("해당 BL을 찾을 수 없습니다. 아래 예시 화물을 눌러보세요."); }
+    else { setSelectedBl(null); setBlError(L("해당 BL을 찾을 수 없습니다. 아래 예시 화물을 눌러보세요.", "BL not found. Try one of the sample shipments below.")); }
   };
 
   // ── Claude API로 요나 상세 진단 생성 ──────────────────────
@@ -608,6 +645,32 @@ ${actLines}
 실행| 운영 관리자가 지금 당장 챙겨야 할 실무 액션 한 가지를 1문장.
 표·불릿·별표·마크다운 기호 없이 자연스러운 문장으로. 과장 없이 데이터에 근거해서.`;
 
+    // 영문 화면: 같은 엔진 수치를 영문 이름으로 묶어 영문 브리핑을 요청(머리말은 DIAGNOSIS|ACTION|NEXT).
+    const promptEn = `You are 'Yona', the operations control AI for an imported fresh-food cold chain. Using the live analysis data below, brief the on-site operations manager in English.
+
+[Port-to-FC lead time] total ${lt.total.toFixed(1)} hours (${ltDays.toFixed(2)} days)
+${lt.seg.map((s) => `- ${nm(s.name)}: ${s.hours.toFixed(1)}h (normal ${s.base}h)`).join("\n")}
+Largest delays: ${topLeaks.length ? topLeaks.map((t) => `${nm(t.name)} (+${t.leak.toFixed(1)}h)`).join(", ") : "none"}
+
+[Stockout risk by FC]
+${before.map((f) => `- ${nm(f.name)}: stock ${Math.round(f.stock)}, daily demand ${f.demand}, coverage ${f.coverage.toFixed(1)} days, stockout risk ${f.risk}`).join("\n")}
+
+[Freshness (product value loss) risk] expected loss ${(fresh.lossPct * 100).toFixed(0)}% (${fresh.level}) — lead time ${ltDays.toFixed(2)} days, weather risk ${Math.round(risk.wx * 100)}%
+
+[Recommended pre-positioning (using ${vol.toLocaleString()} units of the new shipment)]
+${rec.actions.length ? rec.actions.map((a) => `- ${trAction("en", a)}`).join("\n") : "- (none)"}
+High-risk FCs after action: ${bHigh.length} → ${aHigh.length}
+
+[Pre-arrival gap check] The new shipment arrives in ${lt.total.toFixed(1)} hours. FCs that run out earlier: ${bridge.receivers.length ? bridge.receivers.map((r) => `${nm(r.name)} in ${r.stockoutAt}h`).join(", ") : "none"}. An emergency inter-FC transfer (bridge) of ${bridge.totals.bridged.toLocaleString()} units cuts pre-arrival stockout from ${bridge.totals.need.toLocaleString()} to ${bridge.totals.residual.toLocaleString()} units.
+
+[Cost impact · assumption-based cost model] expected loss before FreshFlow ${fmtWon(costBefore.total)} → after ${fmtWon(timeAfterTotal)} (saving ${fmtWon(shownSaved)}, ${timeSavedPct}%, pre-arrival gap included) · reference: the static model that ignores the gap gives ${savedPct}%
+
+Write the three items below. Start each item with the given header and a vertical bar (|), and keep each item on a single line:
+DIAGNOSIS| The most urgent situation and which lead-time segment caused it, in 1-2 sentences.
+ACTION| The core of the recommended pre-positioning and its expected effect, in 1-2 sentences.
+NEXT| One practical action the operations manager should take right now, in 1 sentence.
+Plain sentences only: no tables, bullets, asterisks or markdown. Stay grounded in the data and do not exaggerate.`;
+
     try {
       const res = await fetch("/api/messages", {
         method: "POST",
@@ -615,7 +678,7 @@ ${actLines}
         body: JSON.stringify({
           model: "claude-sonnet-4-6",
           max_tokens: 1000,
-          messages: [{ role: "user", content: prompt }],
+          messages: [{ role: "user", content: en ? promptEn : prompt }],
         }),
       });
       if (!res.ok) throw new Error(`API ${res.status}`);
@@ -624,7 +687,7 @@ ${actLines}
       if (!text) throw new Error("빈 응답");
       setAiText(text);
     } catch (e) {
-      setAiError("AI 상세 진단을 불러오지 못했습니다. 아래 기본 진단을 참고하세요.");
+      setAiError(L("AI 상세 진단을 불러오지 못했습니다. 아래 기본 진단을 참고하세요.", "Could not load the AI diagnosis. Please refer to the rule-based diagnosis above."));
     } finally {
       setAiLoading(false);
     }
@@ -640,36 +703,38 @@ ${actLines}
 
       <p style={{ fontSize: 16, color: C.dim, margin: "0 0 24px", maxWidth: 760,
         lineHeight: 1.5, letterSpacing: -0.2 }}>
-        "선박이 언제 도착하는가"가 아니라 — <span style={{ color: C.text, fontWeight: 600 }}>"언제 FC에 입고되어 판매가능 재고가 되는가"</span>
+        {en
+          ? <>Not "when does the vessel arrive?" — <span style={{ color: C.text, fontWeight: 600 }}>"when is it received at the FC and sellable?"</span></>
+          : <>"선박이 언제 도착하는가"가 아니라 — <span style={{ color: C.text, fontWeight: 600 }}>"언제 FC에 입고되어 판매가능 재고가 되는가"</span></>}
       </p>
 
       {/* ⓪ BL 화물 조회 */}
       <Section>
-        <Header label="⓪ 화물 조회 · BL / 화물관리번호로 통관 진행 추적 (UNI-PASS)" />
+        <Header label={L("⓪ 화물 조회 · BL / 화물관리번호로 통관 진행 추적 (UNI-PASS)", "⓪ Shipment lookup · track clearance by BL / cargo control number (UNI-PASS)")} />
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <input
             value={blInput}
             onChange={(e) => setBlInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") onBlSearch(); }}
-            placeholder="BL 번호 입력 후 조회 (예: MAEU2406CL427)"
+            placeholder={L("BL 번호 입력 후 조회 (예: MAEU2406CL427)", "Enter a BL number (e.g. MAEU2406CL427)")}
             style={{ flex: "1 1 240px", minWidth: 200, background: C.panel2, border: `0.5px solid ${C.grid}`,
               borderRadius: 6, color: C.text, fontSize: 13, padding: "8px 11px", fontFamily: "'IBM Plex Mono', monospace" }}
           />
           <button onClick={onBlSearch} style={{ border: `1px solid ${C.accent}`, background: C.accent, color: "#fff",
-            borderRadius: 8, padding: "8px 20px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>조회</button>
+            borderRadius: 8, padding: "8px 20px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{L("조회", "Look up")}</button>
         </div>
         {blError && <div style={{ marginTop: 8, fontSize: 12, color: C.amber }}>{blError}</div>}
 
         {/* 예시 화물 칩 */}
         <div style={{ marginTop: 10, display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-          <span style={{ fontSize: 11, color: C.dim }}>예시 화물:</span>
+          <span style={{ fontSize: 11, color: C.dim }}>{L("예시 화물:", "Sample shipments:")}</span>
           {MOCK_BLS.map((b) => {
             const on = selectedBl?.bl === b.bl;
             return (
               <button key={b.bl} onClick={() => applyBl(b)} style={{
                 border: `0.5px solid ${on ? C.blue : C.grid}`, background: on ? `${C.blue}22` : "transparent",
                 color: on ? C.blue : C.dim, borderRadius: 20, padding: "4px 11px", fontSize: 11, cursor: "pointer",
-              }}>{b.flag} {b.item}</button>
+              }}>{b.flag} {nm(b.item)}</button>
             );
           })}
         </div>
@@ -679,13 +744,13 @@ ${actLines}
           <div style={{ marginTop: 12, paddingTop: 12, borderTop: `0.5px solid ${C.grid}` }}>
             <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8, alignItems: "baseline" }}>
               <span style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                <span style={{ fontSize: 15, fontWeight: 700 }}>{selectedBl.flag} {selectedBl.item}</span>
+                <span style={{ fontSize: 15, fontWeight: 700 }}>{selectedBl.flag} {nm(selectedBl.item)}</span>
                 <span style={{ fontSize: 11, color: C.dim, fontFamily: "'IBM Plex Mono', monospace" }}>{selectedBl.bl}</span>
               </span>
-              <span style={{ fontSize: 12, color: C.dim }}>{selectedBl.origin} → {selectedBl.pod} · {selectedBl.vessel}</span>
+              <span style={{ fontSize: 12, color: C.dim }}>{nm(selectedBl.origin)} → {nm(selectedBl.pod)} · {selectedBl.vessel}</span>
             </div>
             <div style={{ marginTop: 4, fontSize: 12, color: C.dim }}>
-              물량 <b style={{ color: C.text }}>{selectedBl.vol.toLocaleString()}개</b> · {selectedBl.note}
+              {L("물량", "Volume")} <b style={{ color: C.text }}>{pcs(selectedBl.vol)}</b> · {nm(selectedBl.note)}
             </div>
 
             {/* 통관 진행 스테퍼 */}
@@ -697,7 +762,7 @@ ${actLines}
                 const col = state === "done" ? C.green : state === "current" ? C.blue : C.grid;
                 return (
                   <React.Fragment key={sk}>
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5, width: 64 }}>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5, width: en ? 78 : 64 }}>
                       <div style={{ width: 24, height: 24, borderRadius: "50%", border: `1.5px solid ${col}`,
                         background: state === "current" ? col : state === "done" ? `${C.green}33` : "transparent",
                         color: state === "current" ? "#fff" : col, display: "flex", alignItems: "center",
@@ -706,7 +771,7 @@ ${actLines}
                         {state === "done" ? "✓" : i + 1}
                       </div>
                       <span style={{ fontSize: 9.5, textAlign: "center", lineHeight: 1.25,
-                        color: state === "current" ? C.blue : C.dim }}>{seg.name}</span>
+                        color: state === "current" ? C.blue : C.dim }}>{nm(seg.name)}</span>
                     </div>
                     {i < STAGE_ORDER.length - 1 && (
                       <div style={{ flex: 1, height: 1.5, marginTop: 11,
@@ -717,8 +782,11 @@ ${actLines}
               })}
             </div>
             <div style={{ marginTop: 10, fontSize: 11, color: C.dim }}>
-              현재 위치: <b style={{ color: C.blue }}>{SEGMENTS.find((s) => s.key === selectedBl.stage)?.name}</b> 진행 중
-              — 이 화물의 구간별 리스크가 아래 리드타임·결품 분석에 반영됩니다.
+              {en
+                ? <>Current stage: <b style={{ color: C.blue }}>{nm(SEGMENTS.find((s) => s.key === selectedBl.stage)?.name)}</b> in progress
+                  — this shipment's segment risks feed the lead-time and stockout analysis below.</>
+                : <>현재 위치: <b style={{ color: C.blue }}>{SEGMENTS.find((s) => s.key === selectedBl.stage)?.name}</b> 진행 중
+                  — 이 화물의 구간별 리스크가 아래 리드타임·결품 분석에 반영됩니다.</>}
             </div>
           </div>
         )}
@@ -726,23 +794,23 @@ ${actLines}
 
       {/* ✦ AI 리스크 센싱 */}
       <Section>
-        <Header label="✦ AI 리스크 센싱 · 뉴스·통관 공지를 읽고 리스크 자동 도출">
+        <Header label={L("✦ AI 리스크 센싱 · 뉴스·통관 공지를 읽고 리스크 자동 도출", "✦ AI risk sensing · reads news and customs notices to derive risks")}>
           <span style={{ display: "inline-flex", gap: 6 }}>
-            <button onClick={() => setSenseText(SENSE_SAMPLES.peace)} style={{ border: `1px solid ${C.grid}`, background: "transparent", color: C.dim, borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>평시 예시</button>
-            <button onClick={() => setSenseText(SENSE_SAMPLES.crisis)} style={{ border: `1px solid ${C.grid}`, background: "transparent", color: C.dim, borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>위기 예시</button>
+            <button onClick={() => setSenseText((en ? SENSE_SAMPLES_EN : SENSE_SAMPLES).peace)} style={{ border: `1px solid ${C.grid}`, background: "transparent", color: C.dim, borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{L("평시 예시", "Normal sample")}</button>
+            <button onClick={() => setSenseText((en ? SENSE_SAMPLES_EN : SENSE_SAMPLES).crisis)} style={{ border: `1px solid ${C.grid}`, background: "transparent", color: C.dim, borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{L("위기 예시", "Crisis sample")}</button>
           </span>
         </Header>
         <textarea value={senseText} onChange={(e) => setSenseText(e.target.value)} rows={3}
-          placeholder="뉴스 헤드라인 · UNI-PASS 통관 공지 · 기상 특보를 붙여넣으세요"
+          placeholder={L("뉴스 헤드라인 · UNI-PASS 통관 공지 · 기상 특보를 붙여넣으세요", "Paste news headlines, UNI-PASS customs notices or weather advisories")}
           style={{ width: "100%", resize: "vertical", background: C.panel2, border: `1px solid ${C.grid}`,
             borderRadius: 8, color: C.text, fontSize: 13, lineHeight: 1.6, padding: "10px 12px", fontFamily: FONT }} />
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, flexWrap: "wrap" }}>
           <button onClick={runRiskSensing} disabled={sensing} style={{
             border: "none", background: sensing ? C.grid : C.accent, color: sensing ? C.dim : "#fff",
             borderRadius: 8, padding: "9px 18px", fontSize: 13, fontWeight: 700, cursor: sensing ? "default" : "pointer" }}>
-            {sensing ? "분석 중…" : "✦ AI로 리스크 자동 도출 → 슬라이더 적용"}
+            {sensing ? L("분석 중…", "Analyzing…") : L("✦ AI로 리스크 자동 도출 → 슬라이더 적용", "✦ Derive risks with AI → apply to sliders")}
           </button>
-          {senseResult && <span style={{ fontSize: 11, fontWeight: 600, color: senseResult.source.includes("AI") ? C.blue : C.amber }}>{senseResult.source}</span>}
+          {senseResult && <span style={{ fontSize: 11, fontWeight: 600, color: senseResult.source.includes("AI") ? C.blue : C.amber }}>{nm(senseResult.source)}</span>}
         </div>
         {senseError && <div style={{ marginTop: 8, fontSize: 12, color: C.amber }}>{senseError}</div>}
 
@@ -755,10 +823,10 @@ ${actLines}
                 return (
                   <div key={r.key} style={{ background: C.panel2, borderRadius: 8, borderLeft: `3px solid ${col}`, padding: "8px 11px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ fontSize: 12, fontWeight: 600 }}>{r.name}</span>
+                      <span style={{ fontSize: 12, fontWeight: 600 }}>{nm(r.name)}</span>
                       <span style={{ fontSize: 13, fontWeight: 700, color: col, fontFamily: "'IBM Plex Mono', monospace" }}>{Math.round(v * 100)}%</span>
                     </div>
-                    <div style={{ fontSize: 11, color: C.dim, marginTop: 3 }}>{senseResult.rationale?.[r.key] || "—"}</div>
+                    <div style={{ fontSize: 11, color: C.dim, marginTop: 3 }}>{trRationale(lang, senseResult.rationale?.[r.key]) || "—"}</div>
                   </div>
                 );
               })}
@@ -768,13 +836,15 @@ ${actLines}
               <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8, background: `${C.blue}10`, border: `1px solid ${C.blue}44`, borderRadius: 8, padding: "9px 13px", flexWrap: "wrap" }}>
                 <span style={{ fontSize: 16 }}>🕒</span>
                 <span style={{ fontSize: 12, color: C.text }}>
-                  확률형 통관 ETA — <b style={{ color: C.blue }}>P50 약 {Number(senseResult.eta.p50).toFixed(1)}h</b> · <b>P90 약 {Number(senseResult.eta.p90).toFixed(1)}h</b>
-                  <span style={{ color: C.dim }}> · 추정 ({senseResult.eta.basis || "AI 추정"})</span>
+                  {L("확률형 통관 ETA", "Probabilistic customs ETA")} — <b style={{ color: C.blue }}>P50 {L("약", "≈")} {Number(senseResult.eta.p50).toFixed(1)}h</b> · <b>P90 {L("약", "≈")} {Number(senseResult.eta.p90).toFixed(1)}h</b>
+                  <span style={{ color: C.dim }}> · {L("추정", "estimate")} ({nm(senseResult.eta.basis || "AI 추정")})</span>
                 </span>
               </div>
             )}
             <div style={{ marginTop: 10, fontSize: 10, color: C.dim }}>
-              비정형 텍스트 → 리스크 변환은 <b style={{ color: C.text }}>실제 LLM(Claude)</b>이 수행합니다(폴백 시 규칙기반). 텍스트 수집(뉴스·UNI-PASS 라이브 크롤링)은 데모 범위 밖이라 샘플/붙여넣기로 시연하며, ETA는 추정치입니다.
+              {en
+                ? <>Turning unstructured text into risk values is done by <b style={{ color: C.text }}>a real LLM (Claude)</b>, with a rule-based fallback. Collecting the text (live crawling of news and UNI-PASS) is outside the demo scope, so samples or pasted text are used, and the ETA is an estimate.</>
+                : <>비정형 텍스트 → 리스크 변환은 <b style={{ color: C.text }}>실제 LLM(Claude)</b>이 수행합니다(폴백 시 규칙기반). 텍스트 수집(뉴스·UNI-PASS 라이브 크롤링)은 데모 범위 밖이라 샘플/붙여넣기로 시연하며, ETA는 추정치입니다.</>}
             </div>
           </div>
         )}
@@ -782,19 +852,21 @@ ${actLines}
 
       {/* ① 리스크 입력 */}
       <Section>
-        <Header label={selectedBl ? `① 선적 리스크 · ${selectedBl.item} (BL 반영, 슬라이더로 what-if 조정 가능)` : "① 선적 리스크 입력 · 인천항 → 수도권 FC"}>
-          <Toggle options={[["normal", "평소", C.green], ["crisis", "위기", C.red]]}
+        <Header label={selectedBl
+          ? L(`① 선적 리스크 · ${selectedBl.item} (BL 반영, 슬라이더로 what-if 조정 가능)`, `① Shipment risk · ${nm(selectedBl.item)} (from the BL; adjust sliders for what-if)`)
+          : L("① 선적 리스크 입력 · 인천항 → 수도권 FC", "① Shipment risk input · Port of Incheon → Seoul-area FCs")}>
+          <Toggle options={[["normal", L("평소", "Normal"), C.green], ["crisis", L("위기", "Crisis"), C.red]]}
             value={risk.cong > 0.5 ? "crisis" : "normal"} onChange={setScenario} />
         </Header>
         {/* 🛰 실데이터 연동 — 어댑터 레이어(엔진 인터페이스 그대로, 데이터 소스만 교체). 소스별 상태를 정직하게 표기 */}
         <div style={{ marginBottom: 14, padding: "10px 12px", background: C.panel2, border: `1px solid ${C.grid}`, borderRadius: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 12, fontWeight: 600 }}>🛰 실시간 데이터</span>
-            <span style={{ fontSize: 11, color: C.dim }}>기상청 인천 실황·특보 · 관세청 UNI-PASS{selectedBl ? ` · BL ${selectedBl.bl}` : " · (BL 선택 시 통관 조회)"}</span>
+            <span style={{ fontSize: 12, fontWeight: 600 }}>🛰 {L("실시간 데이터", "Live data")}</span>
+            <span style={{ fontSize: 11, color: C.dim }}>{L("기상청 인천 실황·특보 · 관세청 UNI-PASS", "Korea Meteorological Administration (Incheon observations, advisories) · Korea Customs UNI-PASS")}{selectedBl ? ` · BL ${selectedBl.bl}` : L(" · (BL 선택 시 통관 조회)", " · (select a BL to query clearance)")}</span>
             <button onClick={fetchLiveData} disabled={liveLoading} style={{
               marginLeft: "auto", border: `1px solid ${C.blue}`, background: liveLoading ? C.grid : "transparent",
               color: liveLoading ? C.dim : C.blue, borderRadius: 8, padding: "5px 12px", fontSize: 11, fontWeight: 700, cursor: liveLoading ? "default" : "pointer" }}>
-              {liveLoading ? "조회 중…" : "실시간 데이터 가져오기"}
+              {liveLoading ? L("조회 중…", "Fetching…") : L("실시간 데이터 가져오기", "Fetch live data")}
             </button>
           </div>
           {liveError && <div style={{ marginTop: 6, fontSize: 11, color: C.amber }}>{liveError}</div>}
@@ -805,21 +877,21 @@ ${actLines}
                   const s = liveResult.sources?.[r.key] || {}; const v = liveResult.risks?.[r.key];
                   const live = s.status === "live";
                   const col = live ? C.green : (s.status === "error" || s.status === "notfound") ? C.amber : C.dim;
-                  const label = live ? "실시간" : s.status === "nokey" ? "키 미설정" : s.status === "notfound" ? "BL 없음" : s.status === "error" ? "오류" : "미연동";
+                  const label = live ? L("실시간", "Live") : s.status === "nokey" ? L("키 미설정", "Key not set") : s.status === "notfound" ? L("BL 없음", "BL not found") : s.status === "error" ? L("오류", "Error") : L("미연동", "Not connected");
                   return (
-                    <div key={r.key} title={s.src} style={{ background: C.panel, border: `1px solid ${C.grid}`, borderLeft: `3px solid ${col}`, borderRadius: 8, padding: "6px 9px" }}>
+                    <div key={r.key} title={s.src ? nm(s.src) : undefined} style={{ background: C.panel, border: `1px solid ${C.grid}`, borderLeft: `3px solid ${col}`, borderRadius: 8, padding: "6px 9px" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11 }}>
-                        <span style={{ fontWeight: 600 }}>{r.name}</span>
+                        <span style={{ fontWeight: 600 }}>{nm(r.name)}</span>
                         <span style={{ fontWeight: 700, color: col }}>{label}{live && typeof v === "number" ? ` ${Math.round(v * 100)}%` : ""}</span>
                       </div>
-                      <div style={{ fontSize: 10, color: C.dim, marginTop: 2 }}>{s.detail || "—"}</div>
+                      <div style={{ fontSize: 10, color: C.dim, marginTop: 2 }}>{s.detail ? nm(s.detail) : "—"}</div>
                     </div>
                   );
                 })}
               </div>
               <div style={{ marginTop: 6, fontSize: 10, color: C.dim }}>
-                실시간 소스만 슬라이더에 반영되고, 미연동 항목은 시뮬레이션/수동 값을 유지합니다
-                {liveResult.stage ? ` · UNI-PASS 진행단계: ${liveResult.stage}` : ""} · 조회 {new Date(liveResult.fetchedAt).toLocaleTimeString("ko-KR")}
+                {L("실시간 소스만 슬라이더에 반영되고, 미연동 항목은 시뮬레이션/수동 값을 유지합니다", "Only live sources are applied to the sliders; unconnected items keep their simulated or manual values")}
+                {liveResult.stage ? L(` · UNI-PASS 진행단계: ${liveResult.stage}`, ` · UNI-PASS stage: ${liveResult.stage}`) : ""} · {L("조회", "fetched")} {new Date(liveResult.fetchedAt).toLocaleTimeString(en ? "en-US" : "ko-KR")}
               </div>
             </>
           )}
@@ -828,7 +900,7 @@ ${actLines}
           {RISKS.map((r) => (
             <div key={r.key}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: C.dim, marginBottom: 5 }}>
-                <span>{r.name}</span>
+                <span>{nm(r.name)}</span>
                 <span style={{ fontWeight: 600, color: C.text }}>{Math.round(risk[r.key] * 100)}%</span>
               </div>
               <input type="range" min="0" max="100" value={risk[r.key] * 100} style={{ width: "100%" }}
@@ -837,7 +909,7 @@ ${actLines}
           ))}
         </div>
         <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 12 }}>
-          <span style={{ fontSize: 12, color: C.dim }}>신규 선적 물량</span>
+          <span style={{ fontSize: 12, color: C.dim }}>{L("신규 선적 물량", "New shipment volume")}</span>
           <input type="range" min="0" max="8000" step="500" value={vol} style={{ flex: 1 }}
             onChange={(e) => setVol(+e.target.value)} />
           <span style={{ fontSize: 13, fontWeight: 600, minWidth: 64, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>
@@ -848,8 +920,8 @@ ${actLines}
 
       {/* ② 리드타임 워터폴 — 하이라이트 */}
       <Section>
-        <Header label="② Port-to-FC 리드타임 · 어디서 새는가">
-          <span style={{ fontSize: 13, fontWeight: 600 }}>총 {lt.total.toFixed(1)}h ({ltDays.toFixed(2)}일)</span>
+        <Header label={L("② Port-to-FC 리드타임 · 어디서 새는가", "② Port-to-FC lead time · where the time leaks")}>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>{L(`총 ${lt.total.toFixed(1)}h (${ltDays.toFixed(2)}일)`, `Total ${lt.total.toFixed(1)}h (${ltDays.toFixed(2)} days)`)}</span>
         </Header>
         <div style={{ marginTop: 14 }}>
           {lt.seg.map((s, i) => {
@@ -864,20 +936,20 @@ ${actLines}
               <div key={i} style={{ marginBottom: 9 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 3, alignItems: "center" }}>
                   <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-                    <span>{s.name}</span>
+                    <span>{nm(s.name)}</span>
                     {ratio >= 1.5 && (
-                      <span title={`평소(정상 ${s.base}h) 대비 ${ratio.toFixed(1)}배 소요 중`} style={{
+                      <span title={L(`평소(정상 ${s.base}h) 대비 ${ratio.toFixed(1)}배 소요 중`, `Taking ${ratio.toFixed(1)}× the normal ${s.base}h`)} style={{
                         fontSize: 9, fontWeight: 700, color: C.red, background: `${C.red}14`,
                         border: `1px solid ${C.red}44`, borderRadius: 4, padding: "1px 5px", whiteSpace: "nowrap",
-                      }}>⚠ 평소 ×{ratio.toFixed(1)}</span>
+                      }}>⚠ {L("평소", "normal")} ×{ratio.toFixed(1)}</span>
                     )}
-                    <span title={s.srcDesc || `데이터 출처: ${s.src}`} style={{
+                    <span title={s.srcDesc ? nm(s.srcDesc) : L(`데이터 출처: ${s.src}`, `Data source: ${nm(s.src)}`)} style={{
                       display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9,
                       color: C.dim, border: `0.5px solid ${C.grid}`, borderRadius: 4, padding: "1px 5px", whiteSpace: "nowrap",
                     }}>
                       <span style={{ width: 5, height: 5, borderRadius: "50%", background: sm.dot, display: "inline-block",
                         ...(s.source === "live" ? { boxShadow: `0 0 4px ${sm.dot}` } : {}) }} />
-                      {sm.label} · {s.src}
+                      {nm(sm.label)} · {nm(s.src)}
                     </span>
                   </span>
                   <span style={{ color: col, fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0 }}>
@@ -894,8 +966,8 @@ ${actLines}
         </div>
         <div style={{ marginTop: 10, fontSize: 12, color: C.dim }}>
           {topLeaks.length
-            ? <>⚠ 가장 많이 새는 구간: <b style={{ color: C.red }}>{topLeaks.map((t) => `${t.name} +${t.leak.toFixed(1)}h`).join(", ")}</b> <span style={{ color: C.dim }}>(초록=정상, 빨강=지연)</span></>
-            : <span style={{ color: C.green }}>✓ 전 구간 정상 범위 — 리스크를 올려 보세요</span>}
+            ? <>⚠ {L("가장 많이 새는 구간:", "Biggest leaks:")} <b style={{ color: C.red }}>{topLeaks.map((t) => `${nm(t.name)} +${t.leak.toFixed(1)}h`).join(", ")}</b> <span style={{ color: C.dim }}>{L("(초록=정상, 빨강=지연)", "(green = normal, red = delay)")}</span></>
+            : <span style={{ color: C.green }}>✓ {L("전 구간 정상 범위 — 리스크를 올려 보세요", "All segments within normal range — try raising the risks")}</span>}
         </div>
 
         {/* 신선도(상품가치 손실) 위험 — 콜드체인은 '시간'뿐 아니라 '온도'. 리드타임↑·폭염↑ → 가치 손실 */}
@@ -909,13 +981,16 @@ ${actLines}
               <span style={{ fontSize: 18 }}>🌡️</span>
               <div style={{ fontSize: 12, color: C.text }}>
                 {danger ? (
-                  <>예상 상품가치 손실 위험 <b style={{ color: fc, fontSize: 16 }}>{(fresh.lossPct * 100).toFixed(0)}%</b>
+                  <>{L("예상 상품가치 손실 위험", "Expected product value loss risk")} <b style={{ color: fc, fontSize: 16 }}>{(fresh.lossPct * 100).toFixed(0)}%</b>
                     <span style={{ color: fc, fontWeight: 700 }}> · {fresh.level}</span>
-                    <span style={{ color: C.dim }}> — 리드타임 {ltDays.toFixed(2)}일 · 기상리스크 {Math.round(risk.wx * 100)}%
-                      {selectedBl ? ` · ${selectedBl.item}(신선도 민감 ${selectedBl.perish.toFixed(1)})` : ""} 누적 신선도 저하</span>
+                    {en
+                      ? <span style={{ color: C.dim }}> — cumulative freshness loss at lead time {ltDays.toFixed(2)} days · weather risk {Math.round(risk.wx * 100)}%
+                          {selectedBl ? ` · ${nm(selectedBl.item)} (perishability ${selectedBl.perish.toFixed(1)})` : ""}</span>
+                      : <span style={{ color: C.dim }}> — 리드타임 {ltDays.toFixed(2)}일 · 기상리스크 {Math.round(risk.wx * 100)}%
+                          {selectedBl ? ` · ${selectedBl.item}(신선도 민감 ${selectedBl.perish.toFixed(1)})` : ""} 누적 신선도 저하</span>}
                   </>
                 ) : (
-                  <span style={{ color: C.green }}>✓ 신선도 정상 — 현재 리드타임은 콜드체인 유지 범위(상품가치 손실 미미)</span>
+                  <span style={{ color: C.green }}>✓ {L("신선도 정상 — 현재 리드타임은 콜드체인 유지 범위(상품가치 손실 미미)", "Freshness normal — the current lead time is within the cold-chain hold window (negligible value loss)")}</span>
                 )}
               </div>
             </div>
@@ -924,22 +999,22 @@ ${actLines}
 
         {/* 데이터 소스 범례 */}
         <div style={{ marginTop: 8, paddingTop: 8, borderTop: `0.5px solid ${C.grid}`, display: "flex", gap: 14, flexWrap: "wrap", fontSize: 10, color: C.dim }}>
-          <span style={{ fontWeight: 600 }}>데이터 연동:</span>
-          <Legend dot={SOURCE_META.live.dot} text="실시간 (공공 API 연동 가능)" />
-          <Legend dot={SOURCE_META.semi.dot} text="준실시간" />
-          <Legend dot={SOURCE_META.est.dot} text="추정 (Phase 2 연동 예정)" />
+          <span style={{ fontWeight: 600 }}>{L("데이터 연동:", "Data availability:")}</span>
+          <Legend dot={SOURCE_META.live.dot} text={L("실시간 (공공 API 연동 가능)", "Live (available via public APIs)")} />
+          <Legend dot={SOURCE_META.semi.dot} text={L("준실시간", "Near-live")} />
+          <Legend dot={SOURCE_META.est.dot} text={L("추정 (Phase 2 연동 예정)", "Estimated (integration planned for Phase 2)")} />
         </div>
       </Section>
 
       {/* ②-B 이상 신호 조기경보 (Phase 2-A) */}
       <Section>
-        <Header label="②-B 이상 신호 조기경보 · 평소와 다른 신호를 먼저 감지">
+        <Header label={L("②-B 이상 신호 조기경보 · 평소와 다른 신호를 먼저 감지", "②-B Early warning · catch signals that deviate from normal")}>
           <button onClick={monitoring ? () => setMonitoring(false) : startMonitoring} style={{
             border: `0.5px solid ${monitoring ? C.amber : C.blue}`, background: "transparent",
             color: monitoring ? C.amber : C.blue, borderRadius: 6, padding: "4px 12px",
             fontSize: 11, fontWeight: 600, cursor: "pointer",
           }}>
-            {monitoring ? "■ 모니터링 중…" : "▶ 실시간 모니터링 시작"}
+            {monitoring ? L("■ 모니터링 중…", "■ Monitoring…") : L("▶ 실시간 모니터링 시작", "▶ Start live monitoring")}
           </button>
         </Header>
 
@@ -951,9 +1026,13 @@ ${actLines}
           }}>
             <span style={{ fontSize: 18 }}>🚨</span>
             <div style={{ fontSize: 13 }}>
-              <b style={{ color: C.red }}>조기경보 발령</b> — 리드타임이 평소 패턴을 이탈해 악화 중입니다.
-              결품 위험 도달까지 약 <b style={{ color: C.red }}>{warning.leadHrs}시간</b> 전에 감지했습니다.
-              <span style={{ color: C.dim }}> → 지금 선제배치하면 결품을 막을 수 있습니다.</span>
+              {en
+                ? <><b style={{ color: C.red }}>Early warning issued</b> — lead time is leaving its normal pattern and getting worse.
+                  Detected about <b style={{ color: C.red }}>{warning.leadHrs} hours</b> before the stockout-risk threshold.
+                  <span style={{ color: C.dim }}> → Pre-positioning now leaves time to prevent the stockout.</span></>
+                : <><b style={{ color: C.red }}>조기경보 발령</b> — 리드타임이 평소 패턴을 이탈해 악화 중입니다.
+                  결품 위험 도달까지 약 <b style={{ color: C.red }}>{warning.leadHrs}시간</b> 전에 감지했습니다.
+                  <span style={{ color: C.dim }}> → 지금 선제배치하면 결품을 막을 수 있습니다.</span></>}
             </div>
           </div>
         )}
@@ -962,7 +1041,7 @@ ${actLines}
         <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 70, marginTop: 4 }}>
           {ltHistory.length === 0 ? (
             <div style={{ color: C.dim, fontSize: 12, alignSelf: "center" }}>
-              모니터링을 시작하면 리드타임 추이를 실시간 추적하고, 평소와 다른 신호를 결품 전에 경보합니다.
+              {L("모니터링을 시작하면 리드타임 추이를 실시간 추적하고, 평소와 다른 신호를 결품 전에 경보합니다.", "Start monitoring to track the lead-time trend live and get warned of abnormal signals before a stockout.")}
             </div>
           ) : ltHistory.map((v, i) => {
             const h = Math.min(100, (v / (highThresholdHrs * 1.1)) * 100);
@@ -982,21 +1061,23 @@ ${actLines}
         </div>
         {ltHistory.length > 0 && (
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: C.dim, marginTop: 4 }}>
-            <span>경과 {(monTick * 0.5).toFixed(1)}h</span>
-            <span style={{ color: C.red }}>― 결품 임계선 {(highThresholdHrs / 24).toFixed(1)}일({highThresholdHrs}h)</span>
-            <span>현재 {ltHistory[ltHistory.length - 1].toFixed(1)}h</span>
+            <span>{L("경과", "Elapsed")} {(monTick * 0.5).toFixed(1)}h</span>
+            <span style={{ color: C.red }}>― {L(`결품 임계선 ${(highThresholdHrs / 24).toFixed(1)}일(${highThresholdHrs}h)`, `Stockout threshold ${(highThresholdHrs / 24).toFixed(1)} days (${highThresholdHrs}h)`)}</span>
+            <span>{L("현재", "Now")} {ltHistory[ltHistory.length - 1].toFixed(1)}h</span>
           </div>
         )}
         <div style={{ marginTop: 8, fontSize: 11, color: C.dim }}>
-          baseline(평소 평균±표준편차) 대비 z-score 이탈 + 추세 외삽으로 결품 <b>전에</b> 경보 · 합성 시계열 200회 검증: 평균 7.4시간 선행, 정상 상황 오경보 0회
+          {en
+            ? <>Warns <b>before</b> a stockout using z-score deviation from the baseline (normal mean ± standard deviation) plus trend extrapolation · verified on 200 synthetic time series: 7.4 hours average lead, 0 false alarms in normal conditions</>
+            : <>baseline(평소 평균±표준편차) 대비 z-score 이탈 + 추세 외삽으로 결품 <b>전에</b> 경보 · 합성 시계열 200회 검증: 평균 7.4시간 선행, 정상 상황 오경보 0회</>}
         </div>
 
         {/* 주문 시점 제안 (Two-way) */}
         <div style={{ marginTop: 14, paddingTop: 14, borderTop: `0.5px solid ${C.grid}` }}>
           <div style={{ fontSize: 12, color: C.dim, marginBottom: 4 }}>
-            주문 시점 제안 · {warning
-              ? <span style={{ color: C.red }}>Risk 기반 (현재 리드타임 {ltDays.toFixed(2)}일 적용)</span>
-              : <span>정상 계획 (평소 리드타임 {ltDays.toFixed(2)}일 적용)</span>}
+            {L("주문 시점 제안", "Order timing")} · {warning
+              ? <span style={{ color: C.red }}>{L(`Risk 기반 (현재 리드타임 ${ltDays.toFixed(2)}일 적용)`, `Risk-based (current lead time ${ltDays.toFixed(2)} days)`)}</span>
+              : <span>{L(`정상 계획 (평소 리드타임 ${ltDays.toFixed(2)}일 적용)`, `Normal plan (lead time ${ltDays.toFixed(2)} days)`)}</span>}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {FC_INIT.map((fc) => {
@@ -1005,30 +1086,32 @@ ${actLines}
               if (!o.feasible) {
                 // Way1: 신규주문 불가
                 const reason = o.docDays < ltDays
-                  ? `재고 ${o.docDays.toFixed(1)}일 < 리드타임 ${ltDays.toFixed(1)}일`
-                  : `발주 적기 ${(-o.slackHr).toFixed(0)}h 경과`;
+                  ? L(`재고 ${o.docDays.toFixed(1)}일 < 리드타임 ${ltDays.toFixed(1)}일`, `stock ${o.docDays.toFixed(1)} days < lead time ${ltDays.toFixed(1)} days`)
+                  : L(`발주 적기 ${(-o.slackHr).toFixed(0)}h 경과`, `order deadline passed ${(-o.slackHr).toFixed(0)}h ago`);
                 return (
                   <div key={fc.id} style={{ fontSize: 12, borderLeft: `3px solid ${C.red}`, paddingLeft: 8 }}>
-                    <b>{fc.name}</b> <span style={{ color: C.red }}>✗ 신규주문 불가</span>
-                    <span style={{ color: C.dim }}> ({reason}) → 즉시 FC간 이관 필요. 결품 막으려면 {fmtHr(o.orderByHr)}까지 주문했어야 함</span>
+                    <b>{nm(fc.name)}</b> <span style={{ color: C.red }}>✗ {L("신규주문 불가", "A new order cannot arrive in time")}</span>
+                    <span style={{ color: C.dim }}> ({reason}) → {en
+                      ? `inter-FC transfer needed now. To prevent the stockout, the order was due by ${trHr(lang, fmtHr(o.orderByHr))}`
+                      : `즉시 FC간 이관 필요. 결품 막으려면 ${fmtHr(o.orderByHr)}까지 주문했어야 함`}</span>
                   </div>
                 );
               }
               // Way2: 발주 가능
               return (
                 <div key={fc.id} style={{ fontSize: 12, borderLeft: `3px solid ${o.spaceTight ? C.amber : C.green}`, paddingLeft: 8 }}>
-                  <b>{fc.name}</b> <span style={{ color: o.spaceTight ? C.amber : C.green }}>
-                    {o.orderQty > 0 ? `발주 권장 ${o.orderQty.toLocaleString()}개` : "재고 충분"}</span>
+                  <b>{nm(fc.name)}</b> <span style={{ color: o.spaceTight ? C.amber : C.green }}>
+                    {o.orderQty > 0 ? L(`발주 권장 ${o.orderQty.toLocaleString()}개`, `Order ${pcs(o.orderQty)}`) : L("재고 충분", "Stock sufficient")}</span>
                   <span style={{ color: C.dim }}>
-                    {" "}· DOC {o.docDays.toFixed(1)}일 · 가동률 {util}% · 발주마감 {fmtHr(o.orderByHr)}
-                    {o.spaceTight && <span style={{ color: C.amber }}> · ⚠ 공간부족 {o.spaceDeficit}개({o.spaceWaitHr.toFixed(0)}h 소진 후 입고) → 분할발주 권장</span>}
+                    {" "}· {L(`DOC ${o.docDays.toFixed(1)}일 · 가동률 ${util}% · 발주마감 ${fmtHr(o.orderByHr)}`, `days of cover ${o.docDays.toFixed(1)} · utilization ${util}% · order by ${trHr(lang, fmtHr(o.orderByHr))}`)}
+                    {o.spaceTight && <span style={{ color: C.amber }}> · ⚠ {L(`공간부족 ${o.spaceDeficit}개(${o.spaceWaitHr.toFixed(0)}h 소진 후 입고) → 분할발주 권장`, `short of space by ${pcs(o.spaceDeficit)} (receive after ${o.spaceWaitHr.toFixed(0)}h of depletion) → split the order`)}</span>}
                   </span>
                 </div>
               );
             })}
           </div>
           <div style={{ marginTop: 8, fontSize: 10, color: C.dim }}>
-            발주마감 = 결품시점 − 리드타임 − 안전버퍼(6h) 역산 · 가동률 높은 FC는 입고 공간 확보 위해 분할발주 제안
+            {L("발주마감 = 결품시점 − 리드타임 − 안전버퍼(6h) 역산 · 가동률 높은 FC는 입고 공간 확보 위해 분할발주 제안", "Order-by time = stockout time − lead time − safety buffer (6h) · FCs with high utilization get a split-order suggestion to free receiving space")}
           </div>
         </div>
       </Section>
@@ -1036,7 +1119,7 @@ ${actLines}
       {/* ③④ FC 리스크 + Copilot */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
         <Section noMargin>
-          <Header label="③ FC 결품 위험">
+          <Header label={L("③ FC 결품 위험", "③ FC stockout risk")}>
             <Toggle options={[["before", "BEFORE", C.red], ["after", "AFTER", C.green]]} value={mode} onChange={setMode} />
           </Header>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
@@ -1046,12 +1129,12 @@ ${actLines}
               return (
                 <div key={f.id} style={{ border: `0.5px solid ${C.grid}`, borderLeft: `3px solid ${col}`, borderRadius: 6, padding: "8px 11px" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontSize: 13, fontWeight: 600 }}>{f.name}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600 }}>{nm(f.name)}</span>
                     <span style={{ fontSize: 10, fontWeight: 600, color: "#fff", background: col, padding: "1px 8px", borderRadius: 10 }}>{f.risk}</span>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: C.dim, marginTop: 3 }}>
-                    <span>재고 {Math.round(f.stock).toLocaleString()} · 커버 {f.coverage.toFixed(1)}일</span>
-                    <span>gap {f.gap.toFixed(2)}일</span>
+                    <span>{L(`재고 ${Math.round(f.stock).toLocaleString()} · 커버 ${f.coverage.toFixed(1)}일`, `Stock ${Math.round(f.stock).toLocaleString()} · cover ${f.coverage.toFixed(1)} days`)}</span>
+                    <span>{L(`gap ${f.gap.toFixed(2)}일`, `gap ${f.gap.toFixed(2)} days`)}</span>
                   </div>
                   <div style={{ height: 5, background: C.panel2, borderRadius: 3, marginTop: 5, overflow: "hidden" }}>
                     <div style={{ height: "100%", width: `${covPct}%`, background: col, opacity: 0.9 }} />
@@ -1064,52 +1147,60 @@ ${actLines}
 
         <div style={{ background: C.panel, border: `0.5px solid ${bHigh.length ? C.red : C.grid}`, borderRadius: 12, padding: 16 }}>
           <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 12 }}>
-            <div style={{ width: 32, height: 32, borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, fontSize: 13, color: "#fff", background: bHigh.length ? C.red : C.green }}>요</div>
-            <span style={{ fontSize: 12, color: C.dim }}>④ AI Copilot 추천</span>
+            <div style={{ width: 32, height: 32, borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, fontSize: 13, color: "#fff", background: bHigh.length ? C.red : C.green }}>{L("요", "Y")}</div>
+            <span style={{ fontSize: 12, color: C.dim }}>{L("④ AI Copilot 추천", "④ AI Copilot recommendation")}</span>
             <button onClick={runAiDiagnosis} disabled={aiLoading} style={{
               marginLeft: "auto", border: `0.5px solid ${C.blue}`, background: aiLoading ? C.grid : "transparent",
               color: aiLoading ? C.dim : C.blue, borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 600,
               cursor: aiLoading ? "default" : "pointer",
             }}>
-              {aiLoading ? "분석 중…" : "✦ AI 상세 진단"}
+              {aiLoading ? L("분석 중…", "Analyzing…") : L("✦ AI 상세 진단", "✦ AI diagnosis")}
             </button>
           </div>
           <div style={{ fontSize: 13, lineHeight: 1.6 }}>
             {bHigh.length ? (
               <>
                 <p style={{ margin: "0 0 8px" }}>
-                  예측 리드타임 <b>{ltDays.toFixed(2)}일</b> 기준, <b style={{ color: C.red }}>{bHigh.map((f) => f.name).join("·")}</b>가 결품 위험입니다. 재고 커버리지가 리드타임보다 짧습니다.
+                  {en
+                    ? <>At the predicted lead time of <b>{ltDays.toFixed(2)} days</b>, <b style={{ color: C.red }}>{bHigh.map((f) => nm(f.name)).join(", ")}</b> {bHigh.length > 1 ? "are" : "is"} at stockout risk. Stock coverage is shorter than the lead time.</>
+                    : <>예측 리드타임 <b>{ltDays.toFixed(2)}일</b> 기준, <b style={{ color: C.red }}>{bHigh.map((f) => f.name).join("·")}</b>가 결품 위험입니다. 재고 커버리지가 리드타임보다 짧습니다.</>}
                 </p>
-                <div style={{ fontSize: 12, color: C.dim, marginBottom: 5 }}>권장 조치</div>
+                <div style={{ fontSize: 12, color: C.dim, marginBottom: 5 }}>{L("권장 조치", "Recommended actions")}</div>
                 {rec.actions.map((a, i) => (
                   <div key={i} style={{ display: "flex", gap: 6, marginBottom: 4 }}>
-                    <span style={{ color: C.blue }}>›</span><span style={{ fontSize: 12 }}>{a}</span>
+                    <span style={{ color: C.blue }}>›</span><span style={{ fontSize: 12 }}>{trAction(lang, a)}</span>
                   </div>
                 ))}
                 <div style={{ marginTop: 10, paddingTop: 10, borderTop: `0.5px solid ${C.grid}`, fontSize: 12 }}>
-                  조치 후 결품 위험 FC <b style={{ color: C.red }}>{bHigh.length}개</b> → <b style={{ color: C.green }}>{aHigh.length}개</b>
-                  <span style={{ color: C.dim }}> (도착 후 재고 커버리지 기준)</span>
+                  {en
+                    ? <>FCs at stockout risk after action: <b style={{ color: C.red }}>{bHigh.length}</b> → <b style={{ color: C.green }}>{aHigh.length}</b>
+                      <span style={{ color: C.dim }}> (by post-arrival stock coverage)</span></>
+                    : <>조치 후 결품 위험 FC <b style={{ color: C.red }}>{bHigh.length}개</b> → <b style={{ color: C.green }}>{aHigh.length}개</b>
+                      <span style={{ color: C.dim }}> (도착 후 재고 커버리지 기준)</span></>}
                 </div>
                 {bridge.totals.need > 0 && (
                   <div style={{ marginTop: 4, fontSize: 11, color: C.amber }}>
-                    신규 선적 도착 전 공백: 품절 {bridge.totals.need.toLocaleString()}개 → 긴급 이관으로 {bridge.totals.residual.toLocaleString()}개 (⑤에서 검증)
+                    {L(`신규 선적 도착 전 공백: 품절 ${bridge.totals.need.toLocaleString()}개 → 긴급 이관으로 ${bridge.totals.residual.toLocaleString()}개 (⑤에서 검증)`,
+                      `Gap before the new shipment arrives: stockout ${pcs(bridge.totals.need)} → ${pcs(bridge.totals.residual)} with emergency transfer (verified in ⑤)`)}
                   </div>
                 )}
                 {topLeaks.length > 0 && (
                   <div style={{ marginTop: 6, fontSize: 11, color: C.dim }}>
-                    + {topLeaks[0].name} 지연이 크므로 {topLeaks[0].name.includes("통관") ? "통관·검역 서류 사전 점검" : topLeaks[0].name.includes("항만") ? "하역 슬롯 선점" : "냉장차 배차 선점"} 권장
+                    {en
+                      ? <>+ {nm(topLeaks[0].name)} is the largest delay, so {topLeaks[0].name.includes("통관") ? "pre-check customs and quarantine documents" : topLeaks[0].name.includes("항만") ? "secure an unloading slot early" : "book reefer trucks early"}</>
+                      : <>+ {topLeaks[0].name} 지연이 크므로 {topLeaks[0].name.includes("통관") ? "통관·검역 서류 사전 점검" : topLeaks[0].name.includes("항만") ? "하역 슬롯 선점" : "냉장차 배차 선점"} 권장</>}
                   </div>
                 )}
               </>
             ) : (
-              <p style={{ margin: 0, color: C.green }}>현재 리드타임에서 모든 FC가 안전 재고를 확보하고 있습니다. 결품 위험 없음.</p>
+              <p style={{ margin: 0, color: C.green }}>{L("현재 리드타임에서 모든 FC가 안전 재고를 확보하고 있습니다. 결품 위험 없음.", "At the current lead time every FC has enough stock. No stockout risk.")}</p>
             )}
           </div>
 
           {/* AI 상세 진단 결과 (Claude API) — 규칙기반 진단 아래에 추가 표시 */}
           {(aiText || aiError) && (
             <div style={{ marginTop: 12, paddingTop: 12, borderTop: `0.5px solid ${C.grid}` }}>
-              <div style={{ fontSize: 11, color: C.blue, fontWeight: 600, marginBottom: 8 }}>✦ 요나 AI 상세 진단</div>
+              <div style={{ fontSize: 11, color: C.blue, fontWeight: 600, marginBottom: 8 }}>{L("✦ 요나 AI 상세 진단", "✦ Yona AI diagnosis")}</div>
               {aiError ? (
                 <p style={{ margin: 0, fontSize: 12, color: C.amber }}>{aiError}</p>
               ) : aiSections ? (
@@ -1118,7 +1209,7 @@ ${actLines}
                     <div key={i} style={{ background: C.panel2, borderRadius: 8, borderLeft: `2px solid ${s.color}`, padding: "9px 12px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5 }}>
                         <span style={{ width: 6, height: 6, borderRadius: "50%", background: s.color, flexShrink: 0 }} />
-                        <span style={{ fontSize: 10.5, fontWeight: 700, color: s.color, letterSpacing: 0.4 }}>{s.title}</span>
+                        <span style={{ fontSize: 10.5, fontWeight: 700, color: s.color, letterSpacing: 0.4 }}>{en ? s.titleEn : s.title}</span>
                       </div>
                       <p style={{ margin: 0, fontSize: 13, lineHeight: 1.7, color: C.text }}>{s.body}</p>
                     </div>
@@ -1138,8 +1229,8 @@ ${actLines}
 
       {/* ⑤ 선제 조치 (Prescriptive) — 알림에서 끝내지 않고 바로 실행 */}
       <Section>
-        <Header label="⑤ 선제 조치 · Prescriptive — 보고 바로 누른다">
-          {actionLog.length > 0 && <span style={{ fontSize: 11, color: C.green, fontWeight: 600 }}>✓ {actionLog.length}건 실행됨</span>}
+        <Header label={L("⑤ 선제 조치 · Prescriptive — 보고 바로 누른다", "⑤ Proactive actions · Prescriptive — see it, then act")}>
+          {actionLog.length > 0 && <span style={{ fontSize: 11, color: C.green, fontWeight: 600 }}>✓ {L(`${actionLog.length}건 실행됨`, `${actionLog.length} executed`)}</span>}
         </Header>
 
         {/* 입고 전 공백 검증(시간축) — 신규 선적이 도착하기 전에 바닥나는 FC와, 이를 메우는 긴급 이관(브리지) 계획 */}
@@ -1147,11 +1238,11 @@ ${actLines}
           <div style={{ background: C.panel2, border: `1px solid ${C.grid}`, borderRadius: 10, padding: "13px 15px", marginBottom: 12 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
               <span style={{ fontSize: 13, fontWeight: 700 }}>
-                ⏱ 입고 전 공백 검증
-                <span style={{ fontWeight: 500, color: C.dim, fontSize: 11 }}> · 신규 선적은 {lt.total.toFixed(1)}h 뒤 도착 — 그 전에 재고가 바닥나는 FC</span>
+                ⏱ {L("입고 전 공백 검증", "Pre-arrival gap check")}
+                <span style={{ fontWeight: 500, color: C.dim, fontSize: 11 }}> · {L(`신규 선적은 ${lt.total.toFixed(1)}h 뒤 도착 — 그 전에 재고가 바닥나는 FC`, `the new shipment arrives in ${lt.total.toFixed(1)}h — FCs that run out before then`)}</span>
               </span>
               {bridgeSafe.totals.residual > 0 && (
-                <Toggle options={[["safe", "안전재고 유지", C.blue], ["full", "전량 메움", C.amber]]} value={bridgeMode} onChange={setBridgeMode} />
+                <Toggle options={[["safe", L("안전재고 유지", "Keep safety stock"), C.blue], ["full", L("전량 메움", "Cover in full"), C.amber]]} value={bridgeMode} onChange={setBridgeMode} />
               )}
             </div>
 
@@ -1164,54 +1255,59 @@ ${actLines}
               const pct = (v) => `${(v / lt.total) * 100}%`;
               return (
                 <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 7 }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, width: 58, flexShrink: 0 }}>{r.name}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, width: en ? 76 : 58, flexShrink: 0 }}>{nm(r.name)}</span>
                   <div style={{ flex: 1, height: 18, display: "flex", borderRadius: 4, overflow: "hidden", border: `1px solid ${C.grid}`, background: C.panel }}>
-                    <div title="현재 재고로 버팀" style={{ width: pct(own), background: `${C.green}55` }} />
-                    <div title="브리지 이관으로 메움" style={{ width: pct(br), background: C.blue }} />
-                    <div title="공백(품절)" style={{ width: pct(gap), background: C.red }} />
+                    <div title={L("현재 재고로 버팀", "Covered by current stock")} style={{ width: pct(own), background: `${C.green}55` }} />
+                    <div title={L("브리지 이관으로 메움", "Covered by bridge transfer")} style={{ width: pct(br), background: C.blue }} />
+                    <div title={L("공백(품절)", "Gap (stockout)")} style={{ width: pct(gap), background: C.red }} />
                   </div>
-                  <span style={{ fontSize: 11, color: C.dim, width: 232, flexShrink: 0, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>
-                    <span style={{ color: C.red, fontWeight: 600 }}>{r.stockoutAt}h 뒤 소진</span> · 부족 {r.need.toLocaleString()} → {r.residual.toLocaleString()}
+                  <span style={{ fontSize: 11, color: C.dim, width: en ? 252 : 232, flexShrink: 0, textAlign: "right", fontFamily: "'IBM Plex Mono', monospace" }}>
+                    <span style={{ color: C.red, fontWeight: 600 }}>{L(`${r.stockoutAt}h 뒤 소진`, `runs out in ${r.stockoutAt}h`)}</span> · {L("부족", "short")} {r.need.toLocaleString()} → {r.residual.toLocaleString()}
                   </span>
                 </div>
               );
             })}
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 10, color: C.dim, margin: "2px 0 9px 68px" }}>
-              <Legend dot={`${C.green}99`} text="현재 재고로 버팀" />
-              <Legend dot={C.blue} text="브리지 이관으로 메움" />
-              <Legend dot={C.red} text="공백(품절)" />
-              <span>· 막대 전체 = 신규 선적 도착까지 {lt.total.toFixed(1)}h</span>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 10, color: C.dim, margin: `2px 0 9px ${en ? 86 : 68}px` }}>
+              <Legend dot={`${C.green}99`} text={L("현재 재고로 버팀", "Covered by current stock")} />
+              <Legend dot={C.blue} text={L("브리지 이관으로 메움", "Covered by bridge transfer")} />
+              <Legend dot={C.red} text={L("공백(품절)", "Gap (stockout)")} />
+              <span>· {L(`막대 전체 = 신규 선적 도착까지 ${lt.total.toFixed(1)}h`, `full bar = ${lt.total.toFixed(1)}h until the new shipment arrives`)}</span>
             </div>
 
             <div style={{ fontSize: 12, lineHeight: 1.6 }}>
               <div>
-                <span style={{ fontWeight: 700 }}>도착 전 품절 {bridge.totals.need.toLocaleString()}개 → </span>
-                <span style={{ fontWeight: 800, color: bridge.totals.residual > 0 ? C.amber : C.green }}>{bridge.totals.residual.toLocaleString()}개</span>
-                <span style={{ color: C.dim }}> · 브리지 이관 {bridge.totals.bridged.toLocaleString()}개</span>
+                <span style={{ fontWeight: 700 }}>{L(`도착 전 품절 ${bridge.totals.need.toLocaleString()}개 → `, `Pre-arrival stockout ${pcs(bridge.totals.need)} → `)}</span>
+                <span style={{ fontWeight: 800, color: bridge.totals.residual > 0 ? C.amber : C.green }}>{pcs(bridge.totals.residual)}</span>
+                <span style={{ color: C.dim }}> · {L(`브리지 이관 ${bridge.totals.bridged.toLocaleString()}개`, `bridge transfer ${pcs(bridge.totals.bridged)}`)}</span>
               </div>
               {bridge.donors.length > 0 && (
                 <div style={{ fontSize: 11, color: C.dim }}>
-                  보내는 곳 — {bridge.donors.map((d) => `${d.name} ${d.given.toLocaleString()}개(도착 시 안전재고 ${d.safetyAfterDays.toFixed(1)}일)`).join(" · ")}
+                  {en
+                    ? <>From — {bridge.donors.map((d) => `${nm(d.name)} ${pcs(d.given)} (safety stock at arrival ${d.safetyAfterDays.toFixed(1)} days)`).join(" · ")}</>
+                    : <>보내는 곳 — {bridge.donors.map((d) => `${d.name} ${d.given.toLocaleString()}개(도착 시 안전재고 ${d.safetyAfterDays.toFixed(1)}일)`).join(" · ")}</>}
                 </div>
               )}
               {bridgeMode === "safe" && bridgeSafe.totals.residual > 0 && (
                 <div style={{ fontSize: 11, color: C.amber }}>
-                  안전재고를 유지하면 {bridgeSafe.totals.residual.toLocaleString()}개가 남습니다. '전량 메움'을 고르면 보내는 FC의 안전재고를 낮춰 {bridgeFull.totals.residual.toLocaleString()}개까지 줄일 수 있습니다 — 이 선택은 담당자가 합니다.
+                  {L(`안전재고를 유지하면 ${bridgeSafe.totals.residual.toLocaleString()}개가 남습니다. '전량 메움'을 고르면 보내는 FC의 안전재고를 낮춰 ${bridgeFull.totals.residual.toLocaleString()}개까지 줄일 수 있습니다 — 이 선택은 담당자가 합니다.`,
+                    `Keeping safety stock leaves ${pcs(bridgeSafe.totals.residual)} uncovered. 'Cover in full' lowers the sending FCs' safety stock to bring it down to ${pcs(bridgeFull.totals.residual)} — the planner makes this call.`)}
                 </div>
               )}
               {bridge.receivers.filter((r) => r.lateHours > 0).map((r) => (
-                <div key={r.id} style={{ fontSize: 11, color: C.red }}>⚠ {r.name}: 이관({bridge.transferHours}h)보다 소진이 먼저라 {r.lateHours}h 공백은 막을 수 없습니다.</div>
+                <div key={r.id} style={{ fontSize: 11, color: C.red }}>⚠ {L(`${r.name}: 이관(${bridge.transferHours}h)보다 소진이 먼저라 ${r.lateHours}h 공백은 막을 수 없습니다.`,
+                  `${nm(r.name)}: stock runs out before a transfer (${bridge.transferHours}h) can land, so a ${r.lateHours}h gap cannot be prevented.`)}</div>
               ))}
             </div>
             <div style={{ marginTop: 8, fontSize: 10, color: C.dim }}>
-              시간축 시뮬레이션 검산 — 품절 {bridge.check.shortage.toLocaleString()}개 · 수용량 초과 {bridge.check.capacityOk ? "없음" : "있음"}. 가정: FC 간 이관 {bridge.transferHours}시간 · 수요 시간당 균등. 선제배치(정적 재고 커버리지)와 별도로 실행 가능성을 검증합니다.
+              {L(`시간축 시뮬레이션 검산 — 품절 ${bridge.check.shortage.toLocaleString()}개 · 수용량 초과 ${bridge.check.capacityOk ? "없음" : "있음"}. 가정: FC 간 이관 ${bridge.transferHours}시간 · 수요 시간당 균등. 선제배치(정적 재고 커버리지)와 별도로 실행 가능성을 검증합니다.`,
+                `Time-axis simulation check — stockout ${pcs(bridge.check.shortage)} · capacity exceeded: ${bridge.check.capacityOk ? "no" : "yes"}. Assumptions: inter-FC transfer takes ${bridge.transferHours} hours · demand is even per hour. This verifies feasibility separately from pre-positioning (static stock coverage).`)}
             </div>
           </div>
         )}
 
         {actionItems.length === 0 ? (
           <div style={{ fontSize: 12, color: C.dim, marginTop: 4 }}>
-            현재 권장 조치 없음 — 위험 BL을 조회하거나 리스크를 올리면 AI가 선제 조치를 제안합니다.
+            {L("현재 권장 조치 없음 — 위험 BL을 조회하거나 리스크를 올리면 AI가 선제 조치를 제안합니다.", "No recommended action right now — look up an at-risk BL or raise the risks and proactive actions will be proposed.")}
           </div>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 10, marginTop: 4 }}>
@@ -1225,19 +1321,19 @@ ${actLines}
                     <span style={{ fontSize: 16 }}>{item.icon}</span>
                     <span style={{ fontSize: 13, fontWeight: 700 }}>{item.title}</span>
                   </div>
-                  <div style={{ fontSize: 11, color: C.dim }}>근거 · {item.basis}</div>
+                  <div style={{ fontSize: 11, color: C.dim }}>{L("근거", "Basis")} · {item.basis}</div>
                   {item.lines && (
                     <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                       {item.lines.map((ln, i) => (<div key={i} style={{ fontSize: 11, color: C.text }}>· {ln}</div>))}
                     </div>
                   )}
-                  <div style={{ fontSize: 11, color: C.green }}>기대효과 · {item.effect}</div>
+                  <div style={{ fontSize: 11, color: C.green }}>{L("기대효과", "Expected effect")} · {item.effect}</div>
                   <button onClick={() => runAction(item)} disabled={done} style={{
                     marginTop: 2, border: "none", borderRadius: 6, padding: "8px 12px", fontSize: 12, fontWeight: 700,
                     cursor: done ? "default" : "pointer",
                     background: done ? `${C.green}1a` : uc, color: done ? C.green : "#fff",
                   }}>
-                    {done ? "✓ 실행됨" : `${item.cta} ▶`}
+                    {done ? L("✓ 실행됨", "✓ Executed") : `${item.cta} ▶`}
                   </button>
                 </div>
               );
@@ -1246,49 +1342,51 @@ ${actLines}
         )}
         {actionLog.length > 0 && (
           <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.grid}` }}>
-            <div style={{ fontSize: 11, color: C.dim, marginBottom: 5 }}>실행 로그</div>
+            <div style={{ fontSize: 11, color: C.dim, marginBottom: 5 }}>{L("실행 로그", "Action log")}</div>
             {actionLog.map((l, i) => (
               <div key={i} style={{ fontSize: 12, color: C.text, marginBottom: 3 }}>
-                <span style={{ color: C.green }}>✓</span> {l.icon} {l.title} <span style={{ color: C.dim }}>— 실행 요청 전송됨</span>
+                <span style={{ color: C.green }}>✓</span> {l.icon} {actionItems.find((it) => it.id === l.id)?.title || l.title} <span style={{ color: C.dim }}>— {L("실행 요청 전송됨", "execution request sent")}</span>
               </div>
             ))}
           </div>
         )}
         <div style={{ marginTop: 10, fontSize: 10, color: C.dim }}>
-          데모 환경 — 실제 운영 시 자사 WMS 입고예약·발주·운송 배차 API로 실행됩니다.
+          {L("데모 환경 — 실제 운영 시 자사 WMS 입고예약·발주·운송 배차 API로 실행됩니다.", "Demo environment — in production these run through the company's WMS receiving-appointment, ordering and dispatch APIs.")}
         </div>
       </Section>
 
       {/* ⑥ 비용 임팩트 · Before vs After */}
       <Section>
-        <Header label="⑥ 비용 임팩트 · 개입 전 vs FreshFlow 적용 후 (가정 기반 비용모델)">
+        <Header label={L("⑥ 비용 임팩트 · 개입 전 vs FreshFlow 적용 후 (가정 기반 비용모델)", "⑥ Cost impact · before vs after FreshFlow (assumption-based cost model)")}>
           <span style={{ fontSize: 11, color: C.dim }}>
-            {selectedBl ? `${selectedBl.item} · 단가 ${fmtWon(price)}/개` : `단가 ${fmtWon(price)}/개 (기본)`}
+            {selectedBl
+              ? L(`${selectedBl.item} · 단가 ${fmtWon(price)}/개`, `${nm(selectedBl.item)} · unit price ${fmtWon(price)}`)
+              : L(`단가 ${fmtWon(price)}/개 (기본)`, `unit price ${fmtWon(price)} (default)`)}
           </span>
         </Header>
 
         {/* 헤드라인 KPI (큰 숫자) */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12, marginTop: 6 }}>
-          <Stat label="FreshFlow 적용 전" value={fmtMan(costBefore.total)} sub={fmtWon(costBefore.total)} color={C.red} />
-          <Stat label="FreshFlow 적용 후" value={fmtMan(timeAfterTotal)} sub={fmtWon(timeAfterTotal)} color={C.amber} />
-          <Stat label={`예상손실 감소 (${shownPct}%↓)`} value={fmtMan(shownSaved)} sub={fmtWon(shownSaved)} color={C.green} big />
+          <Stat label={L("FreshFlow 적용 전", "Before FreshFlow")} value={fmtBigWon(lang, costBefore.total)} sub={fmtWon(costBefore.total)} color={C.red} />
+          <Stat label={L("FreshFlow 적용 후", "After FreshFlow")} value={fmtBigWon(lang, timeAfterTotal)} sub={fmtWon(timeAfterTotal)} color={C.amber} />
+          <Stat label={L(`예상손실 감소 (${shownPct}%↓)`, `Expected loss reduction (${shownPct}%↓)`)} value={fmtBigWon(lang, shownSaved)} sub={fmtWon(shownSaved)} color={C.green} big />
         </div>
 
         {/* 손실 항목별 Before/After 비교 */}
         <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 12 }}>
           {[
-            { name: "결품 예상손실", b: costBefore.stockoutCost, a: shownStockoutUnits * price * COST.lostMargin, bu: costBefore.stockoutUnits, au: shownStockoutUnits },
-            { name: "재고폐기 예상손실", b: costBefore.spoilCost, a: costAfter.spoilCost, bu: costBefore.overUnits, au: costAfter.overUnits },
+            { name: L("결품 예상손실", "Expected stockout loss"), b: costBefore.stockoutCost, a: shownStockoutUnits * price * COST.lostMargin, bu: costBefore.stockoutUnits, au: shownStockoutUnits },
+            { name: L("재고폐기 예상손실", "Expected spoilage loss"), b: costBefore.spoilCost, a: costAfter.spoilCost, bu: costBefore.overUnits, au: costAfter.overUnits },
           ].map((row) => {
             const max = Math.max(row.b, row.a, 1);
             return (
               <div key={row.name}>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 4 }}>
                   <span style={{ fontWeight: 600 }}>{row.name}</span>
-                  <span style={{ color: C.dim }}>적용 전 {row.bu.toLocaleString()}개 → 후 {row.au.toLocaleString()}개</span>
+                  <span style={{ color: C.dim }}>{L(`적용 전 ${row.bu.toLocaleString()}개 → 후 ${row.au.toLocaleString()}개`, `before ${pcs(row.bu)} → after ${pcs(row.au)}`)}</span>
                 </div>
-                <ComparBar label="적용전" val={row.b} max={max} color={C.red} />
-                <ComparBar label="적용후" val={row.a} max={max} color={C.green} />
+                <ComparBar label={L("적용전", "Before")} val={row.b} max={max} color={C.red} />
+                <ComparBar label={L("적용후", "After")} val={row.a} max={max} color={C.green} />
               </div>
             );
           })}
@@ -1297,8 +1395,8 @@ ${actLines}
         {/* 운송비 — FreshFlow가 선제조치(배치·이관)에 투입하는 비용 */}
         <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.grid}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
           <span style={{ fontSize: 12 }}>
-            <span style={{ fontWeight: 600 }}>＋ 운송비 투입</span>
-            <span style={{ color: C.dim, fontSize: 11 }}> (선제배치 {costAfter.placedUnits.toLocaleString()}개 · FC 간 이관 {shownMoved.toLocaleString()}개)</span>
+            <span style={{ fontWeight: 600 }}>＋ {L("운송비 투입", "Transport cost spent")}</span>
+            <span style={{ color: C.dim, fontSize: 11 }}> {L(`(선제배치 ${costAfter.placedUnits.toLocaleString()}개 · FC 간 이관 ${shownMoved.toLocaleString()}개)`, `(pre-positioning ${pcs(costAfter.placedUnits)} · inter-FC transfer ${pcs(shownMoved)})`)}</span>
           </span>
           <span style={{ fontSize: 14, fontWeight: 700, color: C.amber, fontFamily: "'IBM Plex Mono', monospace" }}>{fmtWon(shownTransport)}</span>
         </div>
@@ -1307,17 +1405,19 @@ ${actLines}
         {bridge.totals.need > 0 && (
           <div style={{ marginTop: 12, padding: "11px 13px", background: C.panel2, border: `1px solid ${C.grid}`, borderRadius: 10, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
             <span style={{ fontSize: 12 }}>
-              <span style={{ fontWeight: 700 }}>⏱ 위 수치는 시간축 검증 반영</span>
-              <span style={{ color: C.dim, fontSize: 11 }}> (도착 전 잔여 결품 {bridge.totals.residual.toLocaleString()}개 · 브리지 이관 {bridge.totals.bridged.toLocaleString()}개 · {bridgeMode === "full" ? "전량 메움" : "안전재고 유지"} — ⑤에서 선택)</span>
+              <span style={{ fontWeight: 700 }}>⏱ {L("위 수치는 시간축 검증 반영", "The figures above include the time-axis check")}</span>
+              <span style={{ color: C.dim, fontSize: 11 }}> {L(`(도착 전 잔여 결품 ${bridge.totals.residual.toLocaleString()}개 · 브리지 이관 ${bridge.totals.bridged.toLocaleString()}개 · ${bridgeMode === "full" ? "전량 메움" : "안전재고 유지"} — ⑤에서 선택)`,
+                `(remaining pre-arrival stockout ${pcs(bridge.totals.residual)} · bridge transfer ${pcs(bridge.totals.bridged)} · ${bridgeMode === "full" ? "cover in full" : "keep safety stock"} — chosen in ⑤)`)}</span>
             </span>
             <span style={{ fontSize: 11, color: C.dim, fontFamily: "'IBM Plex Mono', monospace" }}>
-              참고 · 공백을 반영하지 않은 정적 모델: 적용 후 {fmtWon(costAfter.total)} ({savedPct}%↓)
+              {L(`참고 · 공백을 반영하지 않은 정적 모델: 적용 후 ${fmtWon(costAfter.total)} (${savedPct}%↓)`, `Reference · static model ignoring the gap: after ${fmtWon(costAfter.total)} (${savedPct}%↓)`)}
             </span>
           </div>
         )}
 
         <div style={{ marginTop: 12, fontSize: 10, color: C.dim }}>
-          가정 — 결품 예상손실 = 부족분 × 단가 × 마진율 {Math.round(COST.lostMargin * 100)}% · 재고폐기 예상손실(선제조치 안 할 경우) = 목표초과 잉여 × 단가 × 폐기율 {Math.round(COST.spoilRate * 100)}% · 운송비 = 배치 {fmtWon(COST.inbound)}/개 + 이관 {fmtWon(COST.transfer)}/개. 이 화물 1건 기준 · 실데이터 연동 시 정밀화. 큰 숫자는 신규 선적 도착 전 공백을 반영한 값이며(FC 간 이관 6시간 가정), 모두 가정 기반 추정이고 실측이 아닙니다.
+          {L(`가정 — 결품 예상손실 = 부족분 × 단가 × 마진율 ${Math.round(COST.lostMargin * 100)}% · 재고폐기 예상손실(선제조치 안 할 경우) = 목표초과 잉여 × 단가 × 폐기율 ${Math.round(COST.spoilRate * 100)}% · 운송비 = 배치 ${fmtWon(COST.inbound)}/개 + 이관 ${fmtWon(COST.transfer)}/개. 이 화물 1건 기준 · 실데이터 연동 시 정밀화. 큰 숫자는 신규 선적 도착 전 공백을 반영한 값이며(FC 간 이관 6시간 가정), 모두 가정 기반 추정이고 실측이 아닙니다.`,
+            `Assumptions — expected stockout loss = shortfall × unit price × margin ${Math.round(COST.lostMargin * 100)}% · expected spoilage loss (if no proactive action) = surplus above target × unit price × spoilage rate ${Math.round(COST.spoilRate * 100)}% · transport cost = ${fmtWon(COST.inbound)} per unit placed + ${fmtWon(COST.transfer)} per unit transferred. For this single shipment · to be refined with real data. The headline figures include the gap before the new shipment arrives (assuming a 6-hour inter-FC transfer). All are assumption-based estimates, not measured results.`)}
         </div>
       </Section>
     </div>

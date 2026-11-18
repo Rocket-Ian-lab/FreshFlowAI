@@ -1,12 +1,14 @@
 import React from "react";
+import { useLang } from "./i18n.js";
 
 /* FreshFlow CI 로고
    모티프: 어두운 스퀘어 위, 출발(blue) → 경유 → 도착(teal, glow)로 이어지는 경로.
    = Port → 통관 → FC로 이어지는 리드타임 구간/노드 연결을 형상화. */
 export default function Logo({ size = 40, rounded = true }) {
+  const { L } = useLang();
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" fill="none"
-      xmlns="http://www.w3.org/2000/svg" role="img" aria-label="FreshFlow 로고">
+      xmlns="http://www.w3.org/2000/svg" role="img" aria-label={L("FreshFlow 로고", "FreshFlow logo")}>
       <defs>
         <linearGradient id="ffBg" x1="0" y1="0" x2="0" y2="100" gradientUnits="userSpaceOnUse">
           <stop offset="0" stopColor="#16294a" />

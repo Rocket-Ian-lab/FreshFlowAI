@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import Logo from "./Logo";
+import { useLang } from "./i18n.js";
 
 /* 소개자료 (Intro) — Anthropic 에디토리얼 스타일 + 절제된 모션.
    크림 배경 + 세리프 본문(Lora) + 산세리프 헤딩(Poppins) + 테라코타 액센트(절제) + 넉넉한 여백.
@@ -81,15 +82,16 @@ function CardIcon({ kind, color }) {
 
 // Port → FC 여정 일러스트 (라인 드로잉 + 이동하는 점)
 function JourneyGraphic() {
+  const { L } = useLang();
   const stages = [
-    { x: 70, label: "항만 대기" },
-    { x: 250, label: "통관·검역" },
-    { x: 430, label: "냉장 내륙" },
-    { x: 610, label: "FC 입고" },
+    { x: 70, label: L("항만 대기", "Port wait") },
+    { x: 250, label: L("통관·검역", "Customs & quarantine") },
+    { x: 430, label: L("냉장 내륙", "Reefer haul") },
+    { x: 610, label: L("FC 입고", "FC receiving") },
   ];
   const last = stages.length - 1;
   return (
-    <svg viewBox="0 0 680 130" style={{ width: "100%", maxWidth: 700, height: "auto" }} role="img" aria-label="Port에서 FC까지의 여정">
+    <svg viewBox="0 0 680 130" style={{ width: "100%", maxWidth: 700, height: "auto" }} role="img" aria-label={L("Port에서 FC까지의 여정", "Journey from port to FC")}>
       <defs>
         <linearGradient id="introRoute" x1="0" x2="1" y1="0" y2="0">
           <stop offset="0" stopColor="#9DC4FF" /><stop offset="1" stopColor="#3182F6" />
@@ -109,22 +111,23 @@ function JourneyGraphic() {
           <text x={s.x} y="96" textAnchor="middle" fontFamily={T.display} fontSize="13" fill={T.dim}>{s.label}</text>
         </g>
       ))}
-      <text x="70" y="32" textAnchor="middle" fontFamily={T.display} fontSize="11" fill={T.mid}>선박 도착</text>
-      <text x="610" y="32" textAnchor="middle" fontFamily={T.display} fontSize="11" fontWeight="600" fill={T.accent}>판매 가능 재고</text>
+      <text x="70" y="32" textAnchor="middle" fontFamily={T.display} fontSize="11" fill={T.mid}>{L("선박 도착", "Vessel arrival")}</text>
+      <text x="610" y="32" textAnchor="middle" fontFamily={T.display} fontSize="11" fontWeight="600" fill={T.accent}>{L("판매 가능 재고", "Sellable stock")}</text>
     </svg>
   );
 }
 
 // 정보 단절 → 통합 일러스트
 function IntegrationGraphic() {
+  const { L } = useLang();
   const sources = [
-    { y: 26, label: "항만 Port-MIS" },
-    { y: 62, label: "통관 UNI-PASS" },
-    { y: 98, label: "검역 식약처" },
+    { y: 26, label: L("항만 Port-MIS", "Port · Port-MIS") },
+    { y: 62, label: L("통관 UNI-PASS", "Customs · UNI-PASS") },
+    { y: 98, label: L("검역 식약처", "Quarantine · MFDS") },
     { y: 134, label: "FC WMS" },
   ];
   return (
-    <svg viewBox="0 0 420 160" style={{ width: "100%", maxWidth: 440, height: "auto" }} role="img" aria-label="분절된 데이터의 통합">
+    <svg viewBox="-30 0 450 160" style={{ width: "100%", maxWidth: 470, height: "auto" }} role="img" aria-label={L("분절된 데이터의 통합", "Integrating fragmented data")}>
       {sources.map((s, i) => (
         <g key={i}>
           <path d={`M120 ${s.y} C 210 ${s.y}, 250 80, 320 80`} fill="none" stroke={T.line} strokeWidth="1.5"
@@ -134,7 +137,7 @@ function IntegrationGraphic() {
         </g>
       ))}
       <circle cx="320" cy="80" r="16" fill={T.accent} style={{ animation: "ff-pulse 3s ease-in-out 1.2s infinite" }} />
-      <text x="320" y="84" textAnchor="middle" fontFamily={T.display} fontSize="11" fontWeight="600" fill="#fff">통합</text>
+      <text x="320" y="84" textAnchor="middle" fontFamily={T.display} fontSize="11" fontWeight="600" fill="#fff">{L("통합", "Unify")}</text>
       <text x="320" y="120" textAnchor="middle" fontFamily={T.display} fontSize="12" fill={T.ink}>FreshFlow</text>
     </svg>
   );
@@ -162,6 +165,7 @@ const Section = ({ children, dark, divider }) => (
 );
 
 export default function Intro({ onLaunch }) {
+  const { en, L } = useLang();
   const accent = (s) => <span style={{ color: T.accent }}>{s}</span>;
 
   return (
@@ -185,20 +189,23 @@ export default function Intro({ onLaunch }) {
             <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 28 }}>
               <span style={{ display: "inline-flex", animation: reduceMotion() ? "none" : "ff-float 5s ease-in-out infinite" }}><Logo size={54} /></span>
               <span style={{ fontFamily: T.display, fontSize: 15, fontWeight: 500, color: T.dim, letterSpacing: 1 }}>
-                콜드체인 Port-to-FC 관제탑
+                {L("콜드체인 Port-to-FC 관제탑", "Cold-chain Port-to-FC control tower")}
               </span>
             </div>
           </Reveal>
           <Reveal delay={80}>
             <h1 style={{ fontFamily: T.heading, fontWeight: 700, fontSize: "clamp(3.2rem,7.5vw,5.6rem)",
               lineHeight: 1.04, letterSpacing: -2, margin: "0 0 30px" }}>
-              조회는 AI가,<br />판단은 당신이.
+              {en ? <>AI does the digging.<br />You make the call.</> : <>조회는 AI가,<br />판단은 당신이.</>}
             </h1>
           </Reveal>
           <Reveal delay={160}>
             <Lead style={{ fontSize: "1.4rem", maxWidth: 740, color: "#4E5968" }}>
-              수입식품 유통사 SCM 담당자에게 — <span style={{ color: T.ink, fontWeight: 600 }}>입항부터 FC 입고까지의 시점 예측과 센터 간 재고 밸런싱</span>을,
-              흩어진 데이터(Port-MIS·UNI-PASS·식약처)를 AI가 모아 분석합니다. 당신은 대시보드를 보고 판단만 하면 됩니다.
+              {en
+                ? <>For supply chain planners at imported-food distributors — <span style={{ color: T.ink, fontWeight: 600 }}>when a shipment will be received at each FC, and how to balance stock across centers</span>.
+                  AI gathers and analyzes the scattered data (Port-MIS, UNI-PASS, Ministry of Food and Drug Safety). You look at the dashboard and decide.</>
+                : <>수입식품 유통사 SCM 담당자에게 — <span style={{ color: T.ink, fontWeight: 600 }}>입항부터 FC 입고까지의 시점 예측과 센터 간 재고 밸런싱</span>을,
+                  흩어진 데이터(Port-MIS·UNI-PASS·식약처)를 AI가 모아 분석합니다. 당신은 대시보드를 보고 판단만 하면 됩니다.</>}
             </Lead>
           </Reveal>
           <Reveal delay={240}>
@@ -208,12 +215,12 @@ export default function Intro({ onLaunch }) {
             <button onClick={onLaunch} className="intro-cta" style={{
               fontFamily: T.display, fontWeight: 600, fontSize: 16, cursor: "pointer", marginTop: 20,
               background: T.ink, color: T.paper, border: "none", borderRadius: 10, padding: "15px 30px" }}>
-              라이브 대시보드 열기 →
+              {L("라이브 대시보드 열기 →", "Open the live dashboard →")}
             </button>
           </Reveal>
           <Reveal delay={420}>
             <div style={{ marginTop: 56, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-              <span style={{ fontFamily: T.display, fontSize: 12, color: T.mid, letterSpacing: 1 }}>아래로 스크롤</span>
+              <span style={{ fontFamily: T.display, fontSize: 12, color: T.mid, letterSpacing: 1 }}>{L("아래로 스크롤", "Scroll down")}</span>
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={T.mid} strokeWidth="2"
                 strokeLinecap="round" strokeLinejoin="round"
                 style={{ animation: reduceMotion() ? "none" : "ff-bob 1.8s ease-in-out infinite" }}>
@@ -226,38 +233,48 @@ export default function Intro({ onLaunch }) {
 
       {/* 문제 */}
       <Section divider>
-        <Reveal><Kicker>누구의, 얼마나 중요한 문제인가</Kicker></Reveal>
-        <Reveal delay={60}><H2>FC가 늘수록, Ian은 자꾸 놓친다</H2></Reveal>
+        <Reveal><Kicker>{L("누구의, 얼마나 중요한 문제인가", "Whose problem, and how much it matters")}</Kicker></Reveal>
+        <Reveal delay={60}><H2>{L("FC가 늘수록, Ian은 자꾸 놓친다", "The more FCs there are, the more Ian misses")}</H2></Reveal>
         <Reveal delay={120}>
           <Lead>
-            우리의 고객은 수입식품 유통사의 <strong>SCM Instock 담당자 Ian</strong>입니다.
-            입항한 화물이 통관·운송을 거쳐 각 FC에 <strong>언제 입고되는지</strong> 예측하고,
-            센터별 재고를 보며 결품과 과재고 사이에서 <strong>재고 밸런싱</strong>을 잡는 사람입니다.
+            {en
+              ? <>Our customer is <strong>Ian, an in-stock planner in supply chain management</strong> at an imported-food distributor.
+                He predicts <strong>when each arriving shipment will be received</strong> at each FC after customs and trucking,
+                and <strong>balances stock</strong> across centers between stockouts and overstock.</>
+              : <>우리의 고객은 수입식품 유통사의 <strong>SCM Instock 담당자 Ian</strong>입니다.
+                입항한 화물이 통관·운송을 거쳐 각 FC에 <strong>언제 입고되는지</strong> 예측하고,
+                센터별 재고를 보며 결품과 과재고 사이에서 <strong>재고 밸런싱</strong>을 잡는 사람입니다.</>}
           </Lead>
         </Reveal>
         <Reveal delay={160}>
           <Lead>
-            주에도 몇 번씩 어느 FC는 결품으로 품절, 어느 FC는 과재고로 폐기비용이 늘어 욕을 먹습니다.
-            입고 시점은 단계마다 정보가 흩어져 예측이 어렵고, 재고는 FC마다 일일이 조회해 기준에 맞춰 수기로 밸런싱해야 합니다.
-            FC가 두어 개일 땐 됐지만, 센터가 여러 개로 늘면서 자꾸 놓치고, 밸런싱을 위한 운송 업무까지 겹쳐 버겁습니다.
+            {en
+              ? <>Several times a week one FC sells out while another piles up overstock and disposal cost, and he takes the blame.
+                Receiving time is hard to predict because the information sits in a different place at every step, and stock has to be looked up FC by FC and balanced by hand.
+                It worked with two or three FCs. As the number of centers grew he kept missing things, and the trucking work needed for balancing piled on top.</>
+              : <>주에도 몇 번씩 어느 FC는 결품으로 품절, 어느 FC는 과재고로 폐기비용이 늘어 욕을 먹습니다.
+                입고 시점은 단계마다 정보가 흩어져 예측이 어렵고, 재고는 FC마다 일일이 조회해 기준에 맞춰 수기로 밸런싱해야 합니다.
+                FC가 두어 개일 땐 됐지만, 센터가 여러 개로 늘면서 자꾸 놓치고, 밸런싱을 위한 운송 업무까지 겹쳐 버겁습니다.</>}
           </Lead>
         </Reveal>
         <Reveal delay={200}>
           <p style={{ fontFamily: T.display, fontSize: 14, color: T.dim, marginTop: 8 }}>
-            FAO — 식품 손실의 4천억 달러가 매장 도달 전 발생 · 업계 94%가 “공급망 가시성 부재”를 최대 장애물로 지목.
+            {L("FAO — 식품 손실의 4천억 달러가 매장 도달 전 발생 · 업계 94%가 “공급망 가시성 부재”를 최대 장애물로 지목.",
+              "FAO — USD 400 billion of food loss happens before food reaches the store · 94% of the industry names “lack of supply chain visibility” as the biggest obstacle.")}
           </p>
         </Reveal>
       </Section>
 
       {/* 근본원인 */}
       <Section divider>
-        <Reveal><Kicker>왜 여태 해결되지 않았나</Kicker></Reveal>
-        <Reveal delay={60}><H2>문제는 ‘정보 단절’ — 그리고 한 단계 더</H2></Reveal>
+        <Reveal><Kicker>{L("왜 여태 해결되지 않았나", "Why it has not been solved yet")}</Kicker></Reveal>
+        <Reveal delay={60}><H2>{L("문제는 ‘정보 단절’ — 그리고 한 단계 더", "The problem is fragmented information — and one layer deeper")}</H2></Reveal>
         <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 28, alignItems: "center" }}>
           <Reveal delay={120}>
             <Lead>
-              입항→통관→반출→내륙→FC 입고까지, 단계마다 정보가 다른 시스템에 흩어져 ‘끝점(판매 가능 시점)’을 아무도 예측하지 않습니다.
-              게다가 FC마다 재고를 따로 조회해 사람이 수기로 밸런싱하다 보니, 센터가 늘수록 결품과 폐기가 동시에 터집니다.
+              {L(`입항→통관→반출→내륙→FC 입고까지, 단계마다 정보가 다른 시스템에 흩어져 ‘끝점(판매 가능 시점)’을 아무도 예측하지 않습니다.
+              게다가 FC마다 재고를 따로 조회해 사람이 수기로 밸런싱하다 보니, 센터가 늘수록 결품과 폐기가 동시에 터집니다.`,
+                "From port arrival through customs, release, trucking and FC receiving, each step keeps its information in a different system, so nobody predicts the end point: when the goods become sellable. And because stock is looked up FC by FC and balanced by hand, stockouts and spoilage break out together as centers are added.")}
             </Lead>
           </Reveal>
           <Reveal delay={180} style={{ display: "flex", justifyContent: "center", margin: "4px 0" }}>
@@ -265,14 +282,20 @@ export default function Intro({ onLaunch }) {
           </Reveal>
           <Reveal delay={220}>
             <Lead>
-              “그런 솔루션은 이미 있지 않나? Windward, Portcast.” 맞습니다. 그러나 그들의 고객은 <strong>화주·포워더</strong>여서
-              관심은 ‘배가 어디 있나(ETA)’까지입니다. ‘FC에 입고돼 팔 수 있는 시점’과 ‘센터 간 재고 밸런싱’은 그들의 관심 밖입니다.
+              {en
+                ? <>“Don't such solutions already exist? Windward, Portcast.” They do. But their customers are <strong>shippers and forwarders</strong>,
+                  so their interest stops at where the vessel is and its estimated time of arrival. When goods are received at the FC and can be sold, and how to balance stock across centers, are outside their scope.</>
+                : <>“그런 솔루션은 이미 있지 않나? Windward, Portcast.” 맞습니다. 그러나 그들의 고객은 <strong>화주·포워더</strong>여서
+                  관심은 ‘배가 어디 있나(ETA)’까지입니다. ‘FC에 입고돼 팔 수 있는 시점’과 ‘센터 간 재고 밸런싱’은 그들의 관심 밖입니다.</>}
             </Lead>
           </Reveal>
           <Reveal delay={260}>
             <Lead style={{ marginBottom: 0 }}>
-              {accent("진짜 근본원인")}은 수단의 부재가 아니라, <strong>유통사 SCM의 관점에서 분절된 데이터를 ‘입고 예측 + 재고 밸런싱’으로 엮어,
-              사람이 하던 조회·정리·판단 준비를 대신해 줄 도구가 없었다</strong>는 것입니다.
+              {en
+                ? <>{accent("The real root cause")} is not a lack of means. <strong>There was no tool that takes the distributor's supply chain view, ties the fragmented data into receiving prediction plus stock balancing,
+                  and does the lookup, organizing and decision prep that people did by hand.</strong></>
+                : <>{accent("진짜 근본원인")}은 수단의 부재가 아니라, <strong>유통사 SCM의 관점에서 분절된 데이터를 ‘입고 예측 + 재고 밸런싱’으로 엮어,
+                  사람이 하던 조회·정리·판단 준비를 대신해 줄 도구가 없었다</strong>는 것입니다.</>}
             </Lead>
           </Reveal>
         </div>
@@ -280,13 +303,13 @@ export default function Intro({ onLaunch }) {
 
       {/* 솔루션 */}
       <Section divider>
-        <Reveal><Kicker>FreshFlow의 답</Kicker></Reveal>
-        <Reveal delay={60}><H2>모은다 → 알아챈다 → 먼저 움직인다</H2></Reveal>
+        <Reveal><Kicker>{L("FreshFlow의 답", "FreshFlow's answer")}</Kicker></Reveal>
+        <Reveal delay={60}><H2>{L("모은다 → 알아챈다 → 먼저 움직인다", "Gather → Detect → Act first")}</H2></Reveal>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 18, marginTop: 8 }}>
           {[
-            { n: "01", icon: "collect", t: "모은다", c: T.blue, d: "Port-MIS·UNI-PASS·식약처 검사 정보와 센터별 재고를 한곳에 모아, Port-to-FC 리드타임 5구간 중 ‘어디서 새는가’를 한눈에 보여줍니다." },
-            { n: "02", icon: "detect", t: "알아챈다", c: T.green, d: "AI가 흩어진 자료를 직접 분석해 입고 시점과 결품 위험을 도출하고, 평소 패턴 이탈을 결품 전에 경보합니다. 새벽에 연락받지 않아도 됩니다." },
-            { n: "03", icon: "act", t: "먼저 움직인다", c: T.accent, d: "센터 간 재고 밸런싱·선제배치·이관까지 계산해 제시합니다. 당신은 대시보드를 보고 ‘실행’만 누르면 됩니다." },
+            { n: "01", icon: "collect", t: L("모은다", "Gather"), c: T.blue, d: L("Port-MIS·UNI-PASS·식약처 검사 정보와 센터별 재고를 한곳에 모아, Port-to-FC 리드타임 5구간 중 ‘어디서 새는가’를 한눈에 보여줍니다.", "Brings Port-MIS, UNI-PASS, food-safety inspection data and per-center stock into one place, and shows at a glance which of the five Port-to-FC lead-time segments is leaking time.") },
+            { n: "02", icon: "detect", t: L("알아챈다", "Detect"), c: T.green, d: L("AI가 흩어진 자료를 직접 분석해 입고 시점과 결품 위험을 도출하고, 평소 패턴 이탈을 결품 전에 경보합니다. 새벽에 연락받지 않아도 됩니다.", "AI analyzes the scattered data to derive receiving time and stockout risk, and warns of deviations from the normal pattern before a stockout. No more calls at dawn.") },
+            { n: "03", icon: "act", t: L("먼저 움직인다", "Act first"), c: T.accent, d: L("센터 간 재고 밸런싱·선제배치·이관까지 계산해 제시합니다. 당신은 대시보드를 보고 ‘실행’만 누르면 됩니다.", "Calculates and proposes inter-center balancing, pre-positioning and transfers. You look at the dashboard and press Run.") },
           ].map((s, i) => (
             <Reveal key={s.n} delay={120 + i * 90}>
               <div className="intro-card" style={{ background: T.card, border: `1px solid ${T.line}`, borderRadius: 18, padding: "30px 30px" }}>
@@ -304,21 +327,21 @@ export default function Intro({ onLaunch }) {
 
       {/* 엔진 알고리즘 */}
       <Section divider>
-        <Reveal><Kicker>엔진 · 어떻게 작동하나</Kicker></Reveal>
-        <Reveal delay={60}><H2>감이 아니라, 계산으로</H2></Reveal>
+        <Reveal><Kicker>{L("엔진 · 어떻게 작동하나", "Engine · how it works")}</Kicker></Reveal>
+        <Reveal delay={60}><H2>{L("감이 아니라, 계산으로", "By calculation, not by gut feel")}</H2></Reveal>
         <Reveal delay={120}>
           <Lead style={{ maxWidth: 760 }}>
-            모든 화면은 6개의 검증된 알고리즘 위에서 돌아갑니다. 블랙박스가 아니라, 누구나 따라 계산할 수 있는 투명한 규칙입니다.
+            {L("모든 화면은 6개의 검증된 알고리즘 위에서 돌아갑니다. 블랙박스가 아니라, 누구나 따라 계산할 수 있는 투명한 규칙입니다.", "Every screen runs on six verified algorithms. They are not a black box: anyone can follow the rules and reproduce the numbers.")}
           </Lead>
         </Reveal>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 16, marginTop: 8 }}>
           {[
-            { tag: "01 · 리드타임", t: "Port-to-FC 리드타임 분해", d: "5개 구간(항만·통관·반출·내륙·FC)을 각각 정상 소요시간에 리스크를 반영해 계산·합산. 어느 구간이 얼마나 새는지 분해합니다.", f: "구간 = base × (1 + Σ 리스크 × 민감도)" },
-            { tag: "02 · 결품 위험", t: "FC별 결품 위험 판정", d: "재고로 며칠 버티는지(커버리지)에서 리드타임을 빼 여유(gap)를 구하고 위험 등급을 매깁니다.", f: "gap = 재고/일수요 − 리드타임 · gap<0 → High" },
-            { tag: "03 · 선제배치", t: "2단계 선제배치 최적화", d: "신규 선적을 부족분 비례로 위험 FC에 우선 배정하고, 그래도 모자라면 과재고 FC에서 이관합니다.", f: "① 부족분 비례 배정 → ② 과재고 이관" },
-            { tag: "04 · 조기경보", t: "이상 신호 조기경보 (z-score)", d: "최근 관측이 평소 패턴 대비 z-score 임계를 넘고 추세가 상승하면 결품이 나기 전에 경보합니다.", f: "z > 1.8 & 추세↑ & 5틱 외삽 ≥ 임계×0.9" },
-            { tag: "05 · 신선도", t: "상품가치 손실(신선도) 추정", d: "콜드체인 허용일을 넘긴 시간에 품목 민감도와 폭염 가속을 곱해 폐기 손실률을 누적합니다.", f: "손실 = perish × (6%/일 ×(1+폭염×1.5)) × 초과일" },
-            { tag: "06 · 비용 임팩트", t: "Before/After 비용 환산", d: "결품 기회손실·재고폐기·이관 운송비를 선제조치 전/후로 환산해 순절감을 계산합니다.", f: "순절감 = (결품+폐기)전 − (결품+폐기+운송)후" },
+            { tag: L("01 · 리드타임", "01 · Lead time"), t: L("Port-to-FC 리드타임 분해", "Port-to-FC lead-time breakdown"), d: L("5개 구간(항만·통관·반출·내륙·FC)을 각각 정상 소요시간에 리스크를 반영해 계산·합산. 어느 구간이 얼마나 새는지 분해합니다.", "Each of the five segments (port, customs, release, trucking, FC) is computed from its normal duration adjusted for risk, then summed. This shows which segment leaks how much time."), f: L("구간 = base × (1 + Σ 리스크 × 민감도)", "segment = base × (1 + Σ risk × sensitivity)") },
+            { tag: L("02 · 결품 위험", "02 · Stockout risk"), t: L("FC별 결품 위험 판정", "Stockout risk rating per FC"), d: L("재고로 며칠 버티는지(커버리지)에서 리드타임을 빼 여유(gap)를 구하고 위험 등급을 매깁니다.", "Subtracts the lead time from how many days the stock lasts (coverage) to get the gap, then assigns a risk grade."), f: L("gap = 재고/일수요 − 리드타임 · gap<0 → High", "gap = stock / daily demand − lead time · gap<0 → High") },
+            { tag: L("03 · 선제배치", "03 · Pre-positioning"), t: L("2단계 선제배치 최적화", "Two-step pre-positioning"), d: L("신규 선적을 부족분 비례로 위험 FC에 우선 배정하고, 그래도 모자라면 과재고 FC에서 이관합니다.", "Allocates the new shipment to at-risk FCs in proportion to their shortfall, and transfers from overstocked FCs if that is still not enough."), f: L("① 부족분 비례 배정 → ② 과재고 이관", "① allocate by shortfall → ② transfer overstock") },
+            { tag: L("04 · 조기경보", "04 · Early warning"), t: L("이상 신호 조기경보 (z-score)", "Anomaly early warning (z-score)"), d: L("최근 관측이 평소 패턴 대비 z-score 임계를 넘고 추세가 상승하면 결품이 나기 전에 경보합니다.", "Warns before a stockout when the latest observation exceeds the z-score threshold against the normal pattern and the trend is rising."), f: L("z > 1.8 & 추세↑ & 5틱 외삽 ≥ 임계×0.9", "z > 1.8 & rising trend & 5-tick projection ≥ threshold × 0.9") },
+            { tag: L("05 · 신선도", "05 · Freshness"), t: L("상품가치 손실(신선도) 추정", "Product value loss (freshness) estimate"), d: L("콜드체인 허용일을 넘긴 시간에 품목 민감도와 폭염 가속을 곱해 폐기 손실률을 누적합니다.", "Accumulates the loss rate from the time beyond the cold-chain hold window, multiplied by item perishability and heat acceleration."), f: L("손실 = perish × (6%/일 ×(1+폭염×1.5)) × 초과일", "loss = perish × (6%/day × (1 + heat × 1.5)) × days over") },
+            { tag: L("06 · 비용 임팩트", "06 · Cost impact"), t: L("Before/After 비용 환산", "Before/after cost conversion"), d: L("결품 기회손실·재고폐기·이관 운송비를 선제조치 전/후로 환산해 순절감을 계산합니다.", "Converts stockout opportunity loss, spoilage and transfer transport cost before and after proactive action into a net saving."), f: L("순절감 = (결품+폐기)전 − (결품+폐기+운송)후", "net saving = (stockout + spoilage) before − (stockout + spoilage + transport) after") },
           ].map((a, i) => (
             <Reveal key={a.tag} delay={120 + i * 70}>
               <div className="intro-card" style={{ background: T.card, border: `1px solid ${T.line}`, borderRadius: 18, padding: "24px 26px" }}>
@@ -332,21 +355,23 @@ export default function Intro({ onLaunch }) {
         </div>
         <Reveal delay={560}>
           <p style={{ fontFamily: T.body, fontSize: "0.95rem", color: T.dim, marginTop: 36, marginBottom: 0 }}>
-            ※ 현재는 머신러닝이 아니라 <strong style={{ color: T.ink }}>리스크 기반 시나리오 계산</strong>입니다. 실데이터 확보 전까지 정확도를 과장하지 않는 정직한 접근이며, 데이터가 쌓이면 동일 인터페이스 위에서 ML 예측으로 고도화합니다.
+            {en
+              ? <>※ This is currently <strong style={{ color: T.ink }}>risk-based scenario calculation</strong>, not machine learning. Until real data is available we do not overstate accuracy, and once data accumulates the same interface will be upgraded to machine-learning prediction.</>
+              : <>※ 현재는 머신러닝이 아니라 <strong style={{ color: T.ink }}>리스크 기반 시나리오 계산</strong>입니다. 실데이터 확보 전까지 정확도를 과장하지 않는 정직한 접근이며, 데이터가 쌓이면 동일 인터페이스 위에서 ML 예측으로 고도화합니다.</>}
           </p>
         </Reveal>
       </Section>
 
       {/* 검증 */}
       <Section divider>
-        <Reveal><Kicker>작동하는 시스템 · 검증된 수치</Kicker></Reveal>
-        <Reveal delay={60}><H2>추측이 아니라, 검증했다</H2></Reveal>
+        <Reveal><Kicker>{L("작동하는 시스템 · 검증된 수치", "A working system · verified numbers")}</Kicker></Reveal>
+        <Reveal delay={60}><H2>{L("추측이 아니라, 검증했다", "Not guessed. Verified.")}</H2></Reveal>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 18, margin: "8px 0 28px" }}>
           {[
-            { node: <CountUp value={7.4} decimals={1} suffix="h" />, l: "임계 도달 전 평균 선행 (조기경보 시뮬레이션)" },
-            { node: "2 → 0", l: "위기 시 결품 위험 FC (재고 커버리지 기준)" },
-            { node: "0 / 200", l: "정상 상황 오경보 (시뮬레이션)" },
-            { node: "79~88%", l: "위기·체리 1건 예상손실 감소 (비용모델)" },
+            { node: <CountUp value={7.4} decimals={1} suffix="h" />, l: L("임계 도달 전 평균 선행 (조기경보 시뮬레이션)", "Average lead before the threshold (early-warning simulation)") },
+            { node: "2 → 0", l: L("위기 시 결품 위험 FC (재고 커버리지 기준)", "FCs at high stockout risk in the crisis case (by stock coverage)") },
+            { node: "0 / 200", l: L("정상 상황 오경보 (시뮬레이션)", "False alarms in normal conditions (simulation)") },
+            { node: "79~88%", l: L("위기·체리 1건 예상손실 감소 (비용모델)", "Expected loss reduction, one crisis cherry shipment (cost model)") },
           ].map((s, i) => (
             <Reveal key={i} delay={i * 90}>
               <div style={{ fontFamily: T.heading, fontWeight: 700, fontSize: "clamp(2.6rem,4vw,3.3rem)", color: T.ink, lineHeight: 1, letterSpacing: -1.5 }}>{s.node}</div>
@@ -356,36 +381,40 @@ export default function Intro({ onLaunch }) {
         </div>
         <Reveal delay={360}>
           <Lead style={{ marginBottom: 0, fontSize: "1.05rem", color: T.dim }}>
-리스크가 점진적으로 악화되는 시나리오를 200회 반복 시뮬레이션해 조기경보가 임계 도달 전에 울리는지(200회 전건, 평균 7.4시간 선행, 정상 상황 오경보 0회) 확인했습니다.
-            신규 선적이 도착하기 전의 공백은 센터 간 긴급 이관으로 메우며, 이를 시간축으로 검증하면 위기 1건의 예상손실이 79~88% 줄어듭니다. 모두 시뮬레이션과 가정 기반 비용모델의 결과이며, 실제 효과는 고객 데이터 파일럿에서 확인합니다.
+            {L(`리스크가 점진적으로 악화되는 시나리오를 200회 반복 시뮬레이션해 조기경보가 임계 도달 전에 울리는지(200회 전건, 평균 7.4시간 선행, 정상 상황 오경보 0회) 확인했습니다.
+            신규 선적이 도착하기 전의 공백은 센터 간 긴급 이관으로 메우며, 이를 시간축으로 검증하면 위기 1건의 예상손실이 79~88% 줄어듭니다. 모두 시뮬레이션과 가정 기반 비용모델의 결과이며, 실제 효과는 고객 데이터 파일럿에서 확인합니다.`,
+              "We simulated a gradually worsening risk scenario 200 times and confirmed that the early warning fires before the threshold: all 200 runs, 7.4 hours ahead on average, with 0 false alarms in normal conditions. The gap before a new shipment arrives is covered by emergency transfers between centers, and when checked on the time axis the expected loss of one crisis shipment falls by 79~88%. These are results of simulation and an assumption-based cost model. The real effect will be confirmed in a pilot with customer data.")}
           </Lead>
         </Reveal>
       </Section>
 
       {/* 비전 / 클로징 (다크 섹션) */}
       <Section dark>
-        <Reveal><Kicker>시작은 뾰족하게, 확장은 크게</Kicker></Reveal>
-        <Reveal delay={60}><H2 light>Ian은 한 명이 아니다</H2></Reveal>
+        <Reveal><Kicker>{L("시작은 뾰족하게, 확장은 크게", "Start sharp, expand wide")}</Kicker></Reveal>
+        <Reveal delay={60}><H2 light>{L("Ian은 한 명이 아니다", "There is more than one Ian")}</H2></Reveal>
         <Reveal delay={120}>
           <p style={{ fontFamily: T.body, fontSize: "1.2rem", lineHeight: 1.7, color: "#B0B8C1", maxWidth: 720, margin: "0 0 14px" }}>
-            여러 FC를 둔 모든 수입식품 유통사에는 같은 고민을 안고 사는 SCM 담당자가 있습니다.
-            한국 수입식품에서 시작해 일반 수입품 → 아시아 콜드체인으로. 2030년 5,000억 달러 시장입니다.
+            {L(`여러 FC를 둔 모든 수입식품 유통사에는 같은 고민을 안고 사는 SCM 담당자가 있습니다.
+            한국 수입식품에서 시작해 일반 수입품 → 아시아 콜드체인으로. 2030년 5,000억 달러 시장입니다.`,
+              "Every imported-food distributor with several FCs has a supply chain planner living with the same problem. We start with imported food in Korea, then general imports, then the Asian cold chain: a USD 500 billion market by 2030.")}
           </p>
         </Reveal>
         <Reveal delay={180}>
           <p style={{ fontFamily: T.body, fontSize: "1.5rem", lineHeight: 1.5, color: T.paper, margin: "28px 0 28px" }}>
-            조회·정리는 AI가, 판단은 Ian이. <span style={{ color: "#5AA0FF" }}>똘똘한 부하직원처럼.</span>
+            {en
+              ? <>AI looks up and organizes. Ian decides. <span style={{ color: "#5AA0FF" }}>Like a sharp junior on the team.</span></>
+              : <>조회·정리는 AI가, 판단은 Ian이. <span style={{ color: "#5AA0FF" }}>똘똘한 부하직원처럼.</span></>}
           </p>
         </Reveal>
         <Reveal delay={240}>
           <button onClick={onLaunch} className="intro-cta" style={{
             fontFamily: T.display, fontWeight: 500, fontSize: 15, cursor: "pointer",
             background: T.accent, color: "#fff", border: "none", borderRadius: 8, padding: "13px 26px" }}>
-            대시보드에서 직접 확인하기 →
+            {L("대시보드에서 직접 확인하기 →", "See it in the dashboard →")}
           </button>
         </Reveal>
         <div style={{ fontFamily: T.display, fontSize: 13, color: "#8B95A1", marginTop: 36 }}>
-          AI 해커톤 · Smart Logistics — Rocket_Ian_Lab
+          {L("AI 해커톤", "AI Hackathon")} · Smart Logistics — Rocket_Ian_Lab
           <span style={{ margin: "0 8px", opacity: 0.5 }}>·</span>
           <a href="https://fresh-flow-ai.vercel.app/" target="_blank" rel="noopener noreferrer"
             style={{ color: "#5AA0FF", textDecoration: "none" }}>fresh-flow-ai.vercel.app</a>
